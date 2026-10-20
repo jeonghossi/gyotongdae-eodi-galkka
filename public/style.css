@@ -222,3 +222,21 @@ footer { margin-top: 28px; font-size: 12px; color: var(--muted); }
 .static [data-card]:hover { border-color: var(--line); }
 .static-note { margin: 28px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--chip); color: var(--muted); font-size: 13px; }
 .static-note a { color: var(--accent); font-weight: 600; }
+
+/* ---- 보기 전용판 안내 팝업 ---- */
+.intro-back { z-index: 40; }
+.intro { width: min(600px, 100%); }
+.intro-lead { margin: 0; font-size: 15px; }
+.intro-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+@media (max-width: 480px) { .intro-cols { grid-template-columns: minmax(0, 1fr); } }
+.intro-col { padding: 12px 14px; border-radius: 14px; min-width: 0; }
+.intro-col.ok { background: var(--ok-soft); } .intro-col.no { background: var(--down-soft); }
+.intro-col h3 { margin: 0 0 6px; font-size: 15px; }
+.intro-col.ok h3 { color: var(--ok); } .intro-col.no h3 { color: var(--down); }
+.intro-col ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 14px; }
+.intro-how { padding: 12px 14px; border-radius: 14px; background: var(--chip); font-size: 14px; }
+.intro-how ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 3px; }
+.intro-how a { color: var(--accent); font-weight: 600; }
+.intro-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.intro-skip { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.intro-ok { font: inherit; font-weight: 600; font-size: 15px; padding: 11px 22px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; }

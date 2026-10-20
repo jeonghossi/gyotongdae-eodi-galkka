@@ -76,6 +76,33 @@
       <button type="button" class="pick-go" id="pickGo">돌리기</button>
     </section>
   </div>
+  <div class="rv-back intro-back" id="intro" hidden>
+    <section class="rv intro" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+      <div class="rv-head">
+        <div class="rv-headtxt"><span class="tag">안내</span><h2 id="introTitle">이 페이지는 보기 전용판이에요</h2></div>
+        <button type="button" class="rv-x" id="introClose" aria-label="안내 닫기">×</button>
+      </div>
+      <p class="intro-lead">GitHub 주소에서는 서버를 돌릴 수 없어서, 일부 기능을 쓸 수 없어요.</p>
+      <div class="intro-cols">
+        <div class="intro-col ok">
+          <h3>✅ 여기서 되는 것</h3>
+          <ul><li>맛집 · 숨은장소 · 꿀팁 보기</li><li>카테고리 · 필터 · 검색</li><li>뭐 먹지? 골라주기</li><li>10초마다 바뀌는 TIP</li><li>지도 · 로드뷰 링크</li></ul>
+        </div>
+        <div class="intro-col no">
+          <h3>❌ 여기서 안 되는 것</h3>
+          <ul><li>리뷰 쓰기 · 보기</li><li>추천 · 비추천</li><li>실시간 익명 채팅</li></ul>
+        </div>
+      </div>
+      <div class="intro-how">
+        <b>모든 기능을 쓰려면</b>
+        <ol><li><a href="https://github.com/jeonghossi/gyotongdae-eodi-galkka" target="_blank" rel="noopener">GitHub 저장소</a>에서 <b>Code → Download ZIP</b>으로 내려받기</li><li>압축을 풀고 <b>실행하기.bat</b> 더블클릭 (Node.js 필요)</li></ol>
+      </div>
+      <div class="intro-foot">
+        <label class="intro-skip"><input type="checkbox" id="introSkip"> 오늘 하루 보지 않기</label>
+        <button type="button" class="intro-ok" id="introOk">확인했어요</button>
+      </div>
+    </section>
+  </div>
   <p class="static-note" id="staticNote" hidden>이 페이지는 <b>보기 전용판</b>이에요. 리뷰·추천·실시간 채팅은 <a href="https://github.com/jeonghossi/gyotongdae-eodi-galkka" target="_blank" rel="noopener">GitHub에서 내려받아</a> 내 PC에서 실행하면 쓸 수 있어요.</p>
   <footer>교통대 학생들이 직접 추천한 정보로 만든 사이트입니다. "확인 안 됨"은 원본에 정보가 없다는 뜻이에요.</footer>
 </div>

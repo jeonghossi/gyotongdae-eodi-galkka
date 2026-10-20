@@ -15,6 +15,20 @@ try {
 }
 const STATIC = window.KD_STATIC;
 if (STATIC) document.getElementById('staticNote').hidden = false;
+// 보기 전용판 안내 팝업: 접속하면 뜸 ('오늘 하루 보지 않기'를 고르면 그날은 안 뜸)
+if (STATIC) {
+  const intro = document.getElementById('intro'), today = new Date().toDateString();
+  let skip = false; try { skip = localStorage.getItem('kd-intro-skip') === today; } catch (e) {}
+  const closeIntro = () => {
+    if (document.getElementById('introSkip').checked) { try { localStorage.setItem('kd-intro-skip', today); } catch (e) {} }
+    intro.hidden = true; document.body.style.overflow = '';
+  };
+  if (!skip) { intro.hidden = false; document.body.style.overflow = 'hidden'; document.getElementById('introOk').focus(); }
+  document.getElementById('introOk').addEventListener('click', closeIntro);
+  document.getElementById('introClose').addEventListener('click', closeIntro);
+  intro.addEventListener('click', e => { if (e.target === intro) closeIntro(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !intro.hidden) closeIntro(); });
+}
 let SUM = {};
 if (!STATIC) try { SUM = await fetch('/api/reviews/summary').then(r => r.ok ? r.json() : {}); } catch (e) {}
 const TABS = [
