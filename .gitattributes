@@ -1,0 +1,2 @@
+# .bat 파일은 Windows 한글 인코딩(CP949)과 줄바꿈(CRLF)을 그대로 지켜야 실행됨
+*.bat -text

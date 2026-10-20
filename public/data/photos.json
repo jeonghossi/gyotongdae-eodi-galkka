@@ -1,0 +1,26 @@
+{
+ "달천 러닝코스": {
+  "src": "images/spot1.webp",
+  "kind": "코스 지도"
+ },
+ "대원생활관 뒷길": {
+  "src": "images/spot2.webp",
+  "kind": "코스 지도"
+ },
+ "검단리 산책로": {
+  "src": "images/spot3.webp",
+  "kind": "코스 지도"
+ },
+ "요도천변길 산책": {
+  "src": "images/spot4.webp",
+  "kind": "코스 지도"
+ },
+ "교내 주차장 노을 스팟": {
+  "src": "images/spot5.webp",
+  "kind": "로드뷰"
+ },
+ "카페 제이": {
+  "src": "images/spot6.webp",
+  "kind": "로드뷰"
+ }
+}

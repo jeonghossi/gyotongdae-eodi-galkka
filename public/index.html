@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>교통대 어디 갈까</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 30C10 22 7 18 7 13a9 9 0 0 1 18 0c0 5-3 9-9 17z' fill='%23D9480F'/%3E%3Ccircle cx='16' cy='13' r='3.5' fill='%23fff'/%3E%3C/svg%3E">
+<!-- 인터넷이 없으면 이 글꼴은 안 불러와지고 PC 기본 글꼴(맑은 고딕)로 보여요 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="hero-left">
+      <div class="brand">
+        <h1>교통대 <em>어디 갈까</em></h1>
+        <p class="src">학생 21명이 추천한 442개 정보</p>
+      </div>
+      <div class="search"><input id="q" type="search" placeholder="가게, 메뉴, 장소, 꿀팁 검색" aria-label="검색"></div>
+    </div>
+    <aside class="tipbox" id="tipbox" aria-label="교통대 꿀팁">
+      <div class="tip-top"><span class="tip-badge">TIP</span><span class="tip-tag" id="tipTag"></span><button type="button" class="tip-next" id="tipNext" aria-label="다음 팁 보기">다음 ▶</button></div>
+      <div class="tip-body" id="tipBody" aria-live="polite"><p class="tip-q" id="tipQ">교통대 생활, 막막하다면?</p><p class="tip-a" id="tipA">10초마다 선배들의 꿀팁이 바뀌어요.</p></div>
+      <div class="tip-foot"><button type="button" class="tip-more" id="tipMore" hidden>자세히 보기 →</button><span class="tip-bar"><span id="tipBar"></span></span></div>
+    </aside>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <main id="view"></main>
+  <button class="fab" id="fab" type="button" aria-expanded="false" aria-controls="chat"><span class="dot" id="fabDot"></span><span id="fabTxt">실시간 수다</span></button>
+  <section class="chat" id="chat" hidden aria-label="실시간 수다">
+    <div class="chat-head"><div><b>실시간 수다</b><small id="chatStatus">연결 중…</small></div><button type="button" id="chatClose" aria-label="채팅 닫기">×</button></div>
+    <div class="stage" id="stage" aria-live="polite"><p class="hint" id="stageHint">여기 쓴 말은 20초 뒤 연기처럼 사라져요.<br>지금 접속한 사람에게만 보이고, 어디에도 저장되지 않아요.</p></div>
+    <form class="chat-form" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="80" placeholder="익명으로 한마디 (80자)" aria-label="메시지" disabled><button type="submit" id="chatSend" disabled>보내기</button></form>
+    <p class="chat-note" id="chatNote"></p>
+  </section>
+  <div class="rv-back" id="rv" hidden>
+    <section class="rv" role="dialog" aria-modal="true" aria-labelledby="rvTitle">
+      <div class="rv-head">
+        <div class="rv-headtxt"><span class="tag" id="rvTag"></span><h2 id="rvTitle"></h2><span class="rv-rec" id="rvRec"></span></div>
+        <button type="button" class="rv-x" id="rvClose" aria-label="리뷰 창 닫기">×</button>
+      </div>
+      <div class="rv-votes">
+        <button type="button" class="rv-vote up" id="rvUpBtn" aria-pressed="false"><span>추천</span><b id="rvUp">0</b></button>
+        <span class="best" id="rvBest" hidden>개념</span>
+        <button type="button" class="rv-vote down" id="rvDownBtn" aria-pressed="false"><span>비추천</span><b id="rvDown">0</b></button>
+      </div>
+      <p class="rv-note" id="rvNote" role="status"></p>
+      <h3 class="rv-h">리뷰 <b id="rvCount">0</b></h3>
+      <ul class="rv-list" id="rvList"></ul>
+      <form class="rv-form" id="rvForm" autocomplete="off">
+        <div class="rv-id"><input id="rvName" maxlength="12" placeholder="닉네임 (비우면 ㅇㅇ)" aria-label="닉네임"><input id="rvPw" type="password" maxlength="20" placeholder="비밀번호 4자 이상" aria-label="비밀번호"></div>
+        <textarea id="rvText" maxlength="300" rows="3" placeholder="이 곳 어땠나요? (300자)" aria-label="리뷰 내용"></textarea>
+        <button type="submit">리뷰 등록</button>
+      </form>
+    </section>
+  </div>
+  <div class="rv-back" id="pick" hidden>
+    <section class="rv pick" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+      <div class="rv-head">
+        <div class="rv-headtxt"><h2 id="pickTitle">뭐 먹지?</h2><span class="rv-rec">조건을 고르고 돌려 보세요</span></div>
+        <button type="button" class="rv-x" id="pickClose" aria-label="골라주기 창 닫기">×</button>
+      </div>
+      <div class="filters pick-opts" id="pickOpts">
+        <button type="button" class="chip" data-opt="meal" aria-pressed="true">밥집만</button>
+        <button type="button" class="chip" data-opt="solo" aria-pressed="false">혼밥 O만</button>
+        <button type="button" class="chip" data-opt="cheap" aria-pressed="false">1인 8천 원 이하</button>
+        <button type="button" class="chip" data-opt="near" aria-pressed="false">학교 앞만</button>
+        <button type="button" class="chip" data-opt="cat" aria-pressed="false" id="pickCatChip" hidden></button>
+      </div>
+      <p class="pick-count" id="pickCount"></p>
+      <div class="slot" id="pickSlot" aria-live="polite"><span class="slot-name" id="pickName">?</span><span class="slot-sub" id="pickSub">버튼을 누르면 골라 드려요</span></div>
+      <div class="pick-result" id="pickResult" hidden></div>
+      <button type="button" class="pick-go" id="pickGo">돌리기</button>
+    </section>
+  </div>
+  <footer>교통대 학생들이 직접 추천한 정보로 만든 사이트입니다. "확인 안 됨"은 원본에 정보가 없다는 뜻이에요.</footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

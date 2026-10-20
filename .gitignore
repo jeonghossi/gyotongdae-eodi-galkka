@@ -1,0 +1,11 @@
+# 사람들이 쓴 리뷰·추천 기록 (IP 앞자리, 암호화된 비밀번호 포함) — 저장소에 올리지 않음
+storage/
+
+# 엑셀 변환 도구를 처음 실행할 때 설치되는 파일
+node_modules/
+tools/package.json
+tools/package-lock.json
+
+# 임시 파일
+*.tmp
+*.log
