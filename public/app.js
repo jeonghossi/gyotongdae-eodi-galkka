@@ -1,6 +1,9 @@
 // 교통대 어디 갈까 — 데이터(data/*.json)를 불러온 뒤 화면을 그림
 // 서버 알림(채팅·리뷰 변경)은 연결 하나로 같이 받음
-window.KD_ES = location.protocol === 'file:' ? null : new EventSource('/events');
+// 보기 전용판: GitHub Pages(서버 없음)나 파일을 직접 연 경우 → 리뷰·추천·채팅을 숨김
+window.KD_STATIC = location.protocol === 'file:' || /.github.io$/.test(location.hostname);
+document.documentElement.classList.toggle('static', window.KD_STATIC);
+window.KD_ES = window.KD_STATIC ? null : new EventSource('/events');
 (async () => {
 let D, PHOTOS, COORDS;
 try {
@@ -10,8 +13,10 @@ try {
   document.getElementById('view').innerHTML = '<p class="empty">데이터를 불러오지 못했어요.<br>폴더의 "실행하기.bat"을 더블클릭해서 열어 주세요.</p>';
   return;
 }
+const STATIC = window.KD_STATIC;
+if (STATIC) document.getElementById('staticNote').hidden = false;
 let SUM = {};
-try { SUM = await fetch('/api/reviews/summary').then(r => r.ok ? r.json() : {}); } catch (e) {}
+if (!STATIC) try { SUM = await fetch('/api/reviews/summary').then(r => r.ok ? r.json() : {}); } catch (e) {}
 const TABS = [
   { id: 'food', label: '맛집', n: D.food.length },
   { id: 'spot', label: '숨은장소', n: D.spot.length },
@@ -34,7 +39,7 @@ const BEST = 5; // 추천이 이만큼 넘으면 '개념' 표시
 const keyOf = (tab, x) => tab + ':' + x.n;
 const vbarInner = key => { const v = SUM[key] || { up: 0, down: 0, n: 0 };
   return `${v.up >= BEST ? '<span class="best">개념</span>' : ''}<span class="vu">추천 <b>${v.up}</b></span><span class="vd">비추천 <b>${v.down}</b></span><span class="vc">리뷰 <b>${v.n}</b></span>`; };
-const vbar = key => `<div class="vbar"><span class="vnums" data-vk="${esc(key)}">${vbarInner(key)}</span><button type="button" class="open-rv" data-open="${esc(key)}">리뷰·추천 →</button></div>`;
+const vbar = key => STATIC ? '' : `<div class="vbar"><span class="vnums" data-vk="${esc(key)}">${vbarInner(key)}</span><button type="button" class="open-rv" data-open="${esc(key)}">리뷰·추천 →</button></div>`;
 
 function renderTabs() {
   document.getElementById('tabs').innerHTML = TABS.map(t =>
@@ -53,7 +58,7 @@ function foodView(q) {
     <label class="sort"><span class="lbl">정렬</span> <select id="sort">
       <option value="rec"${st.sort === 'rec' ? ' selected' : ''}>학생 추천순</option>
       <option value="price"${st.sort === 'price' ? ' selected' : ''}>가격 낮은 순</option>
-      <option value="vote"${st.sort === 'vote' ? ' selected' : ''}>추천 많은 순</option></select></label></div>`;
+      ${STATIC ? '' : `<option value="vote"${st.sort === 'vote' ? ' selected' : ''}>추천 많은 순</option>`}</select></label></div>`;
   let rows = D.food.filter(f => (!st.cat || f.c === st.cat) && (!st.solo || f.s === 'O') && (!st.cheap || (f.p !== null && f.p <= 8000)) && has(f, q));
   const up = f => (SUM[keyOf('food', f)] || {}).up || 0;
   rows.sort(st.sort === 'price' ? (a, b) => (a.p ?? 1e9) - (b.p ?? 1e9) || b.r - a.r : st.sort === 'vote' ? (a, b) => up(b) - up(a) || b.r - a.r : (a, b) => b.r - a.r);
@@ -299,9 +304,9 @@ function showResult(f) {
   const box = $id('pickResult');
   box.innerHTML = `<div class="meta">${f.p !== null ? `<span class="price">${won(f.p)}~</span>` : '<span class="unk">가격 확인 안 됨</span>'}
       ${f.s === 'O' ? '<span class="solo o">혼밥 O</span>' : f.s === 'X' ? '<span class="solo x">혼밥 X</span>' : '<span class="unk">혼밥 확인 안 됨</span>'}
-      <span class="tag">학생 추천 ${f.r}</span><span class="tag">추천 ${v.up} · 비추천 ${v.down}</span></div>
+      <span class="tag">학생 추천 ${f.r}</span>${STATIC ? '' : `<span class="tag">추천 ${v.up} · 비추천 ${v.down}</span>`}</div>
     ${f.l ? `<div class="addr">${esc(f.l)}</div>` : ''}
-    <div class="pick-actions"><button type="button" class="chip" data-pickrv="${esc(keyOf('food', f))}">리뷰 ${v.n}개 보기</button>${f.u ? `<a class="chip" href="${esc(f.u)}" target="_blank" rel="noopener">지도 보기 →</a>` : ''}</div>`;
+    <div class="pick-actions">${STATIC ? '' : `<button type="button" class="chip" data-pickrv="${esc(keyOf('food', f))}">리뷰 ${v.n}개 보기</button>`}${f.u ? `<a class="chip" href="${esc(f.u)}" target="_blank" rel="noopener">지도 보기 →</a>` : ''}</div>`;
   box.hidden = false;
 }
 function spin() {
@@ -408,11 +413,7 @@ render();
     } catch (err) { note.textContent = err.message || '메시지를 보내지 못했어요. 다시 시도해 주세요.'; }
   });
 
-  if (location.protocol === 'file:') {
-    status.textContent = '채팅이 꺼져 있어요';
-    note.textContent = '파일을 직접 열면 채팅이 안 돼요. 폴더의 "실행하기.bat"으로 열어 주세요.';
-    setOnline(false); return;
-  }
+  if (window.KD_STATIC) { $('fab').hidden = true; chat.hidden = true; return; } // 보기 전용판: 채팅 숨김
   const es = window.KD_ES;
   es.addEventListener('open', () => { setOnline(true); note.textContent = ''; });
   es.addEventListener('error', () => { setOnline(false); status.textContent = '서버와 연결이 끊겼어요 · 다시 연결 중…'; });
