@@ -24,8 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # 관리자 페이지와 안 쓰는 학생 캡처 사진은 빼고 올림
+      - run: mkdir _site && cp -r public/. _site/ && rm -rf _site/admin.html _site/images _site/data/photos.json
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: public
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

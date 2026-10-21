@@ -16,10 +16,12 @@
   <header class="hero">
     <div class="hero-left">
       <div class="brand">
+        <p class="kicker">한국교통대 충주캠퍼스 · 학생들이 만든 생활 안내서</p>
         <h1>교통대 <em>어디 갈까</em></h1>
-        <p class="src">학생 21명이 추천한 442개 정보</p>
+        <p class="src">학생 21명이 추천한 맛집 · 숨은장소 · 꿀팁 <b>442</b>개</p>
       </div>
       <div class="search"><input id="q" type="search" placeholder="가게, 메뉴, 장소, 꿀팁 검색" aria-label="검색"></div>
+      <button type="button" class="report-cta" id="reportOpen" hidden>정보가 틀렸거나 추가할 곳이 있나요? <b>제보하기 →</b></button>
     </div>
     <aside class="tipbox" id="tipbox" aria-label="교통대 꿀팁">
       <div class="tip-top"><span class="tip-badge">TIP</span><span class="tip-tag" id="tipTag"></span><button type="button" class="tip-next" id="tipNext" aria-label="다음 팁 보기">다음 ▶</button></div>
@@ -29,6 +31,21 @@
   </header>
   <nav class="tabs" role="tablist" id="tabs"></nav>
   <main id="view"></main>
+  <button class="fab ai-fab" id="aiFab" type="button" aria-expanded="false" aria-controls="aiPanel" hidden><span class="ai-spark" aria-hidden="true">✦</span>AI에게 물어보기</button>
+  <section class="ai-panel" id="aiPanel" hidden aria-label="AI 도우미">
+    <div class="ai-head"><div><b>교통대 AI 도우미</b><small>학생들이 추천한 정보 안에서만 답해요 · 내 PC의 EXAONE</small></div><button type="button" class="ai-x" id="aiClose" aria-label="AI 도우미 닫기">×</button></div>
+    <div class="ai-log" id="aiLog" aria-live="polite">
+      <div class="ai-msg bot"><p>안녕하세요! 밥집, 쉴 곳, 버스처럼 교통대 생활이 궁금하면 물어보세요. 그냥 수다도 좋아요.</p></div>
+      <div class="ai-sugg" id="aiSugg">
+        <button type="button" data-q="8천 원 이하 밥집 추천해줘">8천 원 이하 밥집</button>
+        <button type="button" data-q="오늘 점심 뭐 먹지?">오늘 점심 뭐 먹지?</button>
+        <button type="button" data-q="시험기간에 공부할 곳 알려줘">시험기간 공부할 곳</button>
+        <button type="button" data-q="시내 가는 버스 어떻게 타?">시내 가는 버스</button>
+      </div>
+    </div>
+    <form class="ai-form" id="aiForm" autocomplete="off"><input id="aiInput" maxlength="300" placeholder="무엇이든 물어보세요" aria-label="AI에게 질문"><button type="submit" id="aiSend">보내기</button></form>
+    <p class="ai-note">AI는 틀릴 수 있어요. 가게 정보는 카드에 적힌 사이트 데이터가 기준이에요.</p>
+  </section>
   <button class="fab" id="fab" type="button" aria-expanded="false" aria-controls="chat"><span class="dot" id="fabDot"></span><span id="fabTxt">실시간 수다</span></button>
   <section class="chat" id="chat" hidden aria-label="실시간 수다">
     <div class="chat-head"><div><b>실시간 수다</b><small id="chatStatus">연결 중…</small></div><button type="button" id="chatClose" aria-label="채팅 닫기">×</button></div>
@@ -48,6 +65,7 @@
         <button type="button" class="rv-vote down" id="rvDownBtn" aria-pressed="false"><span>비추천</span><b id="rvDown">0</b></button>
       </div>
       <p class="rv-note" id="rvNote" role="status"></p>
+      <button type="button" class="rv-report" id="rvReport" hidden>이 정보가 틀렸나요? 제보하기 →</button>
       <h3 class="rv-h">리뷰 <b id="rvCount">0</b></h3>
       <ul class="rv-list" id="rvList"></ul>
       <form class="rv-form" id="rvForm" autocomplete="off">
@@ -65,7 +83,6 @@
       </div>
       <div class="filters pick-opts" id="pickOpts">
         <button type="button" class="chip" data-opt="meal" aria-pressed="true">밥집만</button>
-        <button type="button" class="chip" data-opt="solo" aria-pressed="false">혼밥 O만</button>
         <button type="button" class="chip" data-opt="cheap" aria-pressed="false">1인 8천 원 이하</button>
         <button type="button" class="chip" data-opt="near" aria-pressed="false">학교 앞만</button>
         <button type="button" class="chip" data-opt="cat" aria-pressed="false" id="pickCatChip" hidden></button>
@@ -86,11 +103,11 @@
       <div class="intro-cols">
         <div class="intro-col ok">
           <h3>✅ 여기서 되는 것</h3>
-          <ul><li>맛집 · 숨은장소 · 꿀팁 보기</li><li>카테고리 · 필터 · 검색</li><li>뭐 먹지? 골라주기</li><li>10초마다 바뀌는 TIP</li><li>지도 · 로드뷰 링크</li></ul>
+          <ul><li>맛집 · 숨은장소 · 꿀팁 보기</li><li>카테고리 · 필터 · 검색</li><li>뭐 먹지? 골라주기</li><li>지도로 보기 · 로드뷰 링크</li><li>10초마다 바뀌는 TIP</li></ul>
         </div>
         <div class="intro-col no">
           <h3>❌ 여기서 안 되는 것</h3>
-          <ul><li>리뷰 쓰기 · 보기</li><li>추천 · 비추천</li><li>실시간 익명 채팅</li></ul>
+          <ul><li>리뷰 쓰기 · 보기</li><li>추천 · 비추천</li><li>실시간 익명 채팅</li><li>정보 제보</li><li>AI 도우미</li></ul>
         </div>
       </div>
       <div class="intro-how">
@@ -101,6 +118,31 @@
         <label class="intro-skip"><input type="checkbox" id="introSkip"> 오늘 하루 보지 않기</label>
         <button type="button" class="intro-ok" id="introOk">확인했어요</button>
       </div>
+    </section>
+  </div>
+  <div class="rv-back" id="report" hidden>
+    <section class="rv report" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+      <div class="rv-head">
+        <div class="rv-headtxt"><span class="tag">제보함</span><h2 id="reportTitle">정보 제보하기</h2><span class="rv-rec">보내 주신 내용은 확인 후 사이트에 반영해요</span></div>
+        <button type="button" class="rv-x" id="reportClose" aria-label="제보 창 닫기">×</button>
+      </div>
+      <form class="rv-form report-form" id="reportForm" autocomplete="off">
+        <fieldset class="report-kind"><legend>어떤 제보인가요?</legend>
+          <label><input type="radio" name="kind" value="정보 수정" checked><span>정보 수정</span></label>
+          <label><input type="radio" name="kind" value="새 장소 추천"><span>새 장소 추천</span></label>
+          <label><input type="radio" name="kind" value="폐업·이전"><span>폐업·이전</span></label>
+          <label><input type="radio" name="kind" value="기타"><span>기타</span></label>
+        </fieldset>
+        <div class="rv-id">
+          <select id="reportCat" aria-label="분류"><option>맛집</option><option>숨은장소</option><option>생활꿀팁</option><option>자유</option><option value="모름">잘 모르겠음</option></select>
+          <input id="reportTarget" list="reportNames" maxlength="60" placeholder="가게·장소·꿀팁 이름" aria-label="대상 이름">
+          <datalist id="reportNames"></datalist>
+        </div>
+        <textarea id="reportText" maxlength="1000" rows="5" placeholder="예) 가격이 9,000원에서 10,000원으로 올랐어요 / 매주 일요일 휴무예요" aria-label="제보 내용"></textarea>
+        <input id="reportContact" maxlength="60" placeholder="답장 받을 연락처 (선택: 이메일, 인스타 등)" aria-label="연락처 (선택)">
+        <p class="rv-note" id="reportNote" role="status"></p>
+        <button type="submit" id="reportSend">제보 보내기</button>
+      </form>
     </section>
   </div>
   <p class="static-note" id="staticNote" hidden>이 페이지는 <b>보기 전용판</b>이에요. 리뷰·추천·실시간 채팅은 <a href="https://github.com/jeonghossi/gyotongdae-eodi-galkka" target="_blank" rel="noopener">GitHub에서 내려받아</a> 내 PC에서 실행하면 쓸 수 있어요.</p>

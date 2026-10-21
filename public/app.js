@@ -5,16 +5,35 @@ window.KD_STATIC = location.protocol === 'file:' || /.github.io$/.test(location.
 document.documentElement.classList.toggle('static', window.KD_STATIC);
 window.KD_ES = window.KD_STATIC ? null : new EventSource('/events');
 (async () => {
-let D, PHOTOS, COORDS;
+let D, COORDS;
 try {
   const get = f => fetch(f).then(r => { if (!r.ok) throw new Error(f); return r.json(); });
-  [D, PHOTOS, COORDS] = await Promise.all([get('data/places.json'), get('data/photos.json'), get('data/coords.json')]);
+  [D, COORDS] = await Promise.all([get('data/places.json'), get('data/coords.json')]);
 } catch (e) {
   document.getElementById('view').innerHTML = '<p class="empty">데이터를 불러오지 못했어요.<br>폴더의 "실행하기.bat"을 더블클릭해서 열어 주세요.</p>';
   return;
 }
 const STATIC = window.KD_STATIC;
 if (STATIC) document.getElementById('staticNote').hidden = false;
+// 관리자 페이지 숨은 입구: 화면 어디서든(또는 검색창에) 정해 둔 키를 치면 admin.html 로 이동
+// 키를 변환한 값(FNV-1a)은 코드에 적지 않고, 서버가 '내 PC'에서 연 화면에만 알려 줌
+const HINT = STATIC ? null : await fetch('/api/admin/hint').then(r => r.ok ? r.json() : null).catch(() => null);
+if (HINT) {
+  const KEY_LEN = HINT.len; // 띄어쓰기 포함 전체가 하나의 키
+  const fnv = s => { let h = 0x811c9dc5; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); };
+  const hit = s => s.length >= KEY_LEN && fnv(s.slice(-KEY_LEN).toLowerCase()) === HINT.fnv;
+  // 키가 맞으면 서버에 확인받아 관리자 출입증(쿠키)을 받은 뒤 이동. 다른 기기·틀린 키면 아무 일도 없음
+  const goAdmin = async key => {
+    try { const r = await fetch('/api/admin/enter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) }); if (r.ok) location.href = 'admin.html'; } catch (e) {}
+  };
+  let typed = '';
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+    typed = (typed + e.key).slice(-KEY_LEN);
+    if (hit(typed)) goAdmin(typed.toLowerCase());
+  });
+  document.getElementById('q').addEventListener('input', e => { const v = e.target.value.trim(); if (hit(v)) { e.target.value = ''; goAdmin(v.slice(-KEY_LEN).toLowerCase()); } });
+}
 // 보기 전용판 안내 팝업: 접속하면 뜸 ('오늘 하루 보지 않기'를 고르면 그날은 안 뜸)
 if (STATIC) {
   const intro = document.getElementById('intro'), today = new Date().toDateString();
@@ -37,7 +56,7 @@ const TABS = [
   { id: 'tip', label: '생활꿀팁', n: D.tip.length },
   { id: 'free', label: '자유', n: D.free.length },
 ];
-const st = { tab: 'food', q: '', cat: '', solo: false, cheap: false, sort: 'rec', area: '', use: '', topic: '' };
+const st = { tab: 'food', q: '', cat: '', cheap: false, sort: 'rec', area: '', use: '', topic: '', view: 'list' };
 try { const s = JSON.parse(localStorage.getItem('kd-tab') || 'null'); if (s && TABS.some(t => t.id === s)) st.tab = s; } catch (e) {}
 const h = location.hash.slice(1); if (TABS.some(t => t.id === h)) st.tab = h;
 
@@ -67,23 +86,22 @@ function foodView(q) {
     return `<button class="tile" data-cat="${esc(c)}" aria-pressed="${st.cat === c}"><span class="ic" aria-hidden="true">${ic}</span><span class="nm">${esc(nm)}</span><span class="ct">${D.food.filter(f => f.c === c).length}곳</span></button>`;
   }).join('') + `</div>`;
   const filters = `<div class="filters">
-    <button class="chip" data-toggle="solo" aria-pressed="${st.solo}">혼밥 O만</button>
     <button class="chip" data-toggle="cheap" aria-pressed="${st.cheap}">1인 8천 원 이하</button>
     <label class="sort"><span class="lbl">정렬</span> <select id="sort">
       <option value="rec"${st.sort === 'rec' ? ' selected' : ''}>학생 추천순</option>
       <option value="price"${st.sort === 'price' ? ' selected' : ''}>가격 낮은 순</option>
       ${STATIC ? '' : `<option value="vote"${st.sort === 'vote' ? ' selected' : ''}>추천 많은 순</option>`}</select></label></div>`;
-  let rows = D.food.filter(f => (!st.cat || f.c === st.cat) && (!st.solo || f.s === 'O') && (!st.cheap || (f.p !== null && f.p <= 8000)) && has(f, q));
+  let rows = D.food.filter(f => (!st.cat || f.c === st.cat) && (!st.cheap || (f.p !== null && f.p <= 8000)) && has(f, q));
   const up = f => (SUM[keyOf('food', f)] || {}).up || 0;
   rows.sort(st.sort === 'price' ? (a, b) => (a.p ?? 1e9) - (b.p ?? 1e9) || b.r - a.r : st.sort === 'vote' ? (a, b) => up(b) - up(a) || b.r - a.r : (a, b) => b.r - a.r);
   const cards = rows.map(f => `<article data-card class="card">
       <div class="top"><h2>${esc(f.n)}</h2><span class="rec">학생 추천 ${f.r}</span></div>
       <div class="meta"><span class="tag">${esc(f.c)}</span>${f.m ? `<span>${esc(f.m)}</span>` : ''}
-        ${f.p !== null ? `<span class="price">${won(f.p)}~</span>` : '<span class="unk">가격 확인 안 됨</span>'}
-        ${f.s === 'O' ? '<span class="solo o">혼밥 O</span>' : f.s === 'X' ? '<span class="solo x">혼밥 X</span>' : '<span class="unk">혼밥 확인 안 됨</span>'}</div>
+        ${f.p !== null ? `<span class="price">${won(f.p)}~</span>` : '<span class="unk">가격 확인 안 됨</span>'}</div>
       ${f.l ? `<div class="addr">${esc(f.l)}</div>` : ''}${mapLink(f.u)}${vbar(keyOf('food', f))}</article>`);
   const cta = `<button type="button" class="pick-cta" data-pick><span class="pick-q">뭐 먹을지 모르겠다면?</span><span class="pick-btn">골라줘 →</span></button>`;
-  return cta + tiles + filters + list(rows.length, cards, st.cat ? st.cat : '전체 맛집');
+  const title = st.cat ? st.cat : '전체 맛집';
+  return cta + tiles + filters + (st.view === 'map' ? mapBlock('food', rows, title) : list(rows.length, cards, title, true));
 }
 
 // 용도별 그림 표지 (360x128). 색은 .art[data-u] 의 CSS 변수에서 가져옴
@@ -98,8 +116,7 @@ const ART = {
   '기타': '<rect x="0" y="108" width="360" height="20" style="fill:var(--far)"/><path d="M180 104 C164 82 156 70 156 56 a24 24 0 0 1 48 0 C204 70 196 82 180 104Z" style="fill:var(--obj)"/><circle cx="180" cy="56" r="9" fill="#fff"/><ellipse cx="180" cy="106" rx="18" ry="4" style="fill:var(--near)"/>',
 };
 const cover = s => {
-  const ph = PHOTOS[s.n];
-  if (ph) return `<div class="cover${ph.kind === '코스 지도' ? ' map' : ''}"><img src="${ph.src}" alt="${esc(s.n)} ${ph.kind}" loading="lazy"><span class="cap">${ph.kind} · 1주차 학생 캡처</span></div>`;
+  // 용도별 그림 표지 (학생 캡처 사진은 어색해서 안 씀. 파일은 public/images 에 남아 있음)
   const u = ART[s.g] ? s.g : '기타';
   return `<div class="cover art" data-u="${esc(u)}" aria-hidden="true"><svg viewBox="0 0 360 128" preserveAspectRatio="xMidYMid slice"><rect width="360" height="128" style="fill:var(--sky)"/>${ART[u]}</svg></div>`;
 };
@@ -116,7 +133,7 @@ function spotView(q) {
       <div class="meta"><span class="tag">${esc(s.g)}</span><span class="tag">${esc(s.a)}</span></div>
       <dl class="rows"><dt>이용 시간</dt><dd>${s.h ? esc(s.h) : unk}</dd><dt>이용 조건</dt><dd>${s.k ? esc(s.k) : unk}</dd></dl>
       ${s.l ? `<div class="addr">${esc(s.l)}</div>` : ''}<div class="links">${mapLink(s.u)}${roadview(s)}</div>${vbar(keyOf('spot', s))}</div></article>`);
-  return filters + list(rows.length, cards, '숨은장소');
+  return filters + (st.view === 'map' ? mapBlock('spot', rows, '숨은장소') : list(rows.length, cards, '숨은장소', true));
 }
 
 function tipView(q, src, title) {
@@ -131,16 +148,84 @@ function tipView(q, src, title) {
   return filters + list(rows.length, cards, title);
 }
 
-function list(n, cards, title) {
-  return `<p class="count"><b>${esc(title)}</b> · ${n}개</p>` +
+// 목록 ↔ 지도 전환 버튼 (맛집·숨은장소)
+const viewSwitch = () => `<div class="vswitch" role="group" aria-label="보기 방식">
+    <button type="button" data-view="list" aria-pressed="${st.view === 'list'}">목록</button>
+    <button type="button" data-view="map" aria-pressed="${st.view === 'map'}">지도</button></div>`;
+const countRow = (title, n, sw) => `<div class="count-row"><p class="count"><b>${esc(title)}</b> · ${n}개</p>${sw ? viewSwitch() : ''}</div>`;
+
+function list(n, cards, title, sw) {
+  return countRow(title, n, sw) +
     (n ? `<div class="list">${cards.join('')}</div>` : `<p class="empty">조건에 맞는 결과가 없어요. 필터를 하나 풀어 보세요.</p>`);
+}
+
+// ---- 지도로 보기: 지금 필터에 맞는 곳을 지도 핀으로 (좌표는 학생들이 올린 네이버 지도 링크에서 뽑음) ----
+// 지도 그림(Leaflet + OpenStreetMap)은 인터넷이 있어야 보임. 처음 '지도'를 누를 때만 불러옴
+const USE_IC = { '공부': '📚', '휴식': '🛋️', '산책·운동': '🌳', '경치·사진': '📷', '카페·식사': '☕', '놀거리': '🎮', '편의시설': '🏪', '기타': '📍' };
+const pinIcon = (tab, x) => tab === 'food' ? x.c.slice(0, x.c.indexOf(' ')) : (USE_IC[x.g] || '📍');
+const MAP = { tab: null, rows: [], map: null };
+function mapBlock(tab, rows, title) {
+  MAP.tab = tab; MAP.rows = rows;
+  const off = rows.filter(x => !COORDS[x.n]);
+  const offList = off.length ? `<details class="map-off"><summary>지도에 위치가 없는 곳 ${off.length}곳</summary><div class="map-off-list">${off.map(x =>
+    `<button type="button" class="chip" data-open="${esc(keyOf(tab, x))}"${STATIC ? ' disabled' : ''}>${esc(x.n)}</button>`).join('')}</div></details>` : '';
+  return countRow(title, rows.length, true) + (rows.length
+    ? `<div class="map-wrap"><div class="map-zoom" role="group" aria-label="지도 범위"><button type="button" data-zoom="near" aria-pressed="true">학교 앞</button><button type="button" data-zoom="all" aria-pressed="false">충주 전체</button></div><div id="map" class="map-box" role="region" aria-label="${esc(title)} 지도"><p class="map-msg">지도를 불러오는 중…</p></div></div>${offList}`
+    : `<p class="empty">조건에 맞는 결과가 없어요. 필터를 하나 풀어 보세요.</p>`);
+}
+let leafletReady = null;
+const loadLeaflet = () => leafletReady || (leafletReady = new Promise((ok, no) => {
+  const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.append(css);
+  const js = document.createElement('script'); js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+  js.onload = () => ok(window.L); js.onerror = () => { leafletReady = null; no(new Error('leaflet')); }; document.head.append(js);
+}));
+const CAMPUS = [36.9688, 127.8702]; // 교통대 충주캠퍼스 (중앙도서관 근처)
+async function mountMap() {
+  const box = document.getElementById('map'); if (!box) return;
+  let L; try { L = await loadLeaflet(); } catch (e) { box.innerHTML = '<p class="map-msg">지도를 불러오지 못했어요. 지도는 인터넷이 연결되어 있어야 보여요.</p>'; return; }
+  if (!document.contains(box)) return; // 그새 다른 화면으로 바뀜
+  if (MAP.map) { MAP.map.remove(); MAP.map = null; }
+  box.textContent = '';
+  const map = MAP.map = L.map(box, { scrollWheelZoom: false, zoomControl: true });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+  L.marker(CAMPUS, { icon: L.divIcon({ className: 'pin-campus', html: '<span>🏫 교통대</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(map);
+  const pts = [];
+  for (const x of MAP.rows) {
+    const c = COORDS[x.n]; if (!c) continue;
+    pts.push(c);
+    const key = keyOf(MAP.tab, x);
+    const meta = MAP.tab === 'food'
+      ? [x.c, x.m, x.p !== null ? won(x.p) + '~' : ''].filter(Boolean).join(' · ')
+      : [x.g, x.a, x.h].filter(Boolean).join(' · ');
+    const pop = `<div class="pop"><b>${esc(x.n)}</b><span class="pop-meta">${esc(meta)}</span><span class="pop-rec">학생 추천 ${x.r}</span>
+      <div class="pop-act">${STATIC ? '' : `<button type="button" data-open="${esc(key)}">리뷰·추천 →</button>`}${x.u ? `<a href="${esc(x.u)}" target="_blank" rel="noopener">네이버 지도 →</a>` : ''}</div></div>`;
+    L.marker(c, { icon: L.divIcon({ className: 'pin', html: `<span>${pinIcon(MAP.tab, x)}</span>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] }), title: x.n, alt: x.n })
+      .bindPopup(pop, { maxWidth: 260 }).addTo(map);
+  }
+  // 처음엔 '학교 앞'(캠퍼스에서 2.5km 안)만 보이게. 위 버튼으로 '충주 전체'와 전환
+  const near = pts.filter(c => map.distance(c, CAMPUS) < 2500);
+  const fit = which => {
+    const set = which === 'near' && near.length ? near : pts;
+    if (set.length) map.fitBounds(L.latLngBounds(set.concat([CAMPUS])), { padding: [36, 36], maxZoom: 16 }); else map.setView(CAMPUS, 15);
+    box.parentNode.querySelectorAll('[data-zoom]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.zoom === which)));
+  };
+  fit(near.length ? 'near' : 'all');
+  box.parentNode.querySelector('.map-zoom').onclick = e => { const b = e.target.closest('[data-zoom]'); if (b) fit(b.dataset.zoom); };
+  // 말풍선 안 클릭은 바깥으로 안 전해져서, '리뷰·추천' 버튼은 여기서 직접 연결
+  map.on('popupopen', e => { const b = e.popup.getElement().querySelector('[data-open]'); if (b) b.onclick = () => openReview(b.dataset.open, b); });
+  map.once('focus', () => map.scrollWheelZoom.enable()); // 지도를 한 번 누른 뒤에만 휠 확대 (페이지 스크롤 방해 안 함)
+  box.addEventListener('click', () => map.scrollWheelZoom.enable(), { once: true });
 }
 
 function render() {
   renderTabs();
   const q = st.q.trim().toLowerCase();
-  const v = st.tab === 'food' ? foodView(q) : st.tab === 'spot' ? spotView(q) : st.tab === 'tip' ? tipView(q, D.tip, '생활꿀팁') : tipView(q, D.free, '자유');
+  const v = st.tab === 'food' ? foodView(q) : st.tab === 'spot' ? spotView(q) : st.tab === 'tip' ? tipView(q, D.tip, '생활꿀팁')
+    : tipView(q, D.free, '자유');
+  if (MAP.map) { MAP.map.remove(); MAP.map = null; }
+  if (location.hash.slice(1) !== st.tab) try { history.replaceState(null, '', '#' + st.tab); } catch (e) {}
   document.getElementById('view').innerHTML = v;
+  mountMap();
 }
 
 document.getElementById('tabs').addEventListener('click', e => {
@@ -154,10 +239,13 @@ document.getElementById('view').addEventListener('click', e => {
   const g = e.target.closest('[data-toggle]'); if (g) { st[g.dataset.toggle] = !st[g.dataset.toggle]; return render(); }
   const c = e.target.closest('[data-k]'); if (c) { st[c.dataset.k] = c.dataset.v; return render(); }
   const pk = e.target.closest('[data-pick]'); if (pk) return openPick(pk);
+  const vw = e.target.closest('[data-view]'); if (vw) { st.view = vw.dataset.view; return render(); }
   if (e.target.closest('a')) return; // 지도·로드뷰 링크는 그대로
   const o = e.target.closest('[data-open]') || e.target.closest('[data-card]')?.querySelector('[data-open]');
   if (o) openReview(o.dataset.open, o);
 });
+// 주소 끝 #food, #spot 등으로 바로 그 탭 열기
+window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.some(x => x.id === t) && t !== st.tab) { st.tab = t; st.topic = ''; render(); } });
 document.getElementById('view').addEventListener('change', e => { if (e.target.id === 'sort') { st.sort = e.target.value; render(); } });
 document.getElementById('q').addEventListener('input', e => { st.q = e.target.value; render(); });
 // ---- 리뷰·추천/비추천 창 ----
@@ -274,13 +362,13 @@ if (window.KD_ES) window.KD_ES.addEventListener('review', e => {
 
 // ---- 뭐 먹지? 골라주기 ----
 // 후보: 조건에 맞는 맛집. 뽑힐 확률: 1 + 학생 추천 수 + (추천 - 비추천, 0 아래면 0)
-const PK = { opts: { meal: true, solo: false, cheap: false, near: false, cat: false }, spinning: false, last: null, from: null };
+const PK = { opts: { meal: true, cheap: false, near: false, cat: false }, spinning: false, last: null, from: null };
 const isMeal = f => !/카페|술집/.test(f.c);
 const isNear = f => /대소원면/.test(f.l);
 const weightOf = f => { const v = SUM[keyOf('food', f)] || {}; return 1 + f.r + Math.max(0, (v.up || 0) - (v.down || 0)); };
 function candidates() {
   const o = PK.opts;
-  return D.food.filter(f => (!o.meal || isMeal(f)) && (!o.solo || f.s === 'O') && (!o.cheap || (f.p !== null && f.p <= 8000))
+  return D.food.filter(f => (!o.meal || isMeal(f)) && (!o.cheap || (f.p !== null && f.p <= 8000))
     && (!o.near || isNear(f)) && (!o.cat || f.c === st.cat));
 }
 function pickWeighted(list) {
@@ -317,7 +405,6 @@ function showResult(f) {
   $id('pickSub').textContent = [f.c, f.m].filter(Boolean).join(' · ');
   const box = $id('pickResult');
   box.innerHTML = `<div class="meta">${f.p !== null ? `<span class="price">${won(f.p)}~</span>` : '<span class="unk">가격 확인 안 됨</span>'}
-      ${f.s === 'O' ? '<span class="solo o">혼밥 O</span>' : f.s === 'X' ? '<span class="solo x">혼밥 X</span>' : '<span class="unk">혼밥 확인 안 됨</span>'}
       <span class="tag">학생 추천 ${f.r}</span>${STATIC ? '' : `<span class="tag">추천 ${v.up} · 비추천 ${v.down}</span>`}</div>
     ${f.l ? `<div class="addr">${esc(f.l)}</div>` : ''}
     <div class="pick-actions">${STATIC ? '' : `<button type="button" class="chip" data-pickrv="${esc(keyOf('food', f))}">리뷰 ${v.n}개 보기</button>`}${f.u ? `<a class="chip" href="${esc(f.u)}" target="_blank" rel="noopener">지도 보기 →</a>` : ''}</div>`;
@@ -356,6 +443,7 @@ $id('pick').addEventListener('click', e => {
   if (r) { const from = PK.from; closePick(); openReview(r.dataset.pickrv, from); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$id('pick').hidden) closePick(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $id('pick').hidden && $id('rv').hidden && !$id('aiPanel').hidden) $id('aiClose').click(); });
 
 // ---- 게임식 꿀팁 카드: 10초마다 무작위로 바뀜 (진행 막대가 다 차면 다음 팁, 마우스를 올리면 멈춤) ----
 let TIPS = [];
@@ -384,6 +472,125 @@ $id('tipMore').addEventListener('click', () => {
   $id('tabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 nextTip();
+
+// ---- 정보 제보 (내 PC 실행판에서만: 서버의 storage/reports.json 에 저장) ----
+const RP = { from: null };
+const CAT_TAB = { 맛집: 'food', 숨은장소: 'spot', 생활꿀팁: 'tip', 자유: 'free' };
+function fillNames() {
+  const tab = CAT_TAB[$id('reportCat').value];
+  const names = tab ? D[tab].map(x => x.n) : ['food', 'spot', 'tip', 'free'].flatMap(t => D[t].map(x => x.n));
+  $id('reportNames').innerHTML = names.map(n => `<option value="${esc(n)}"></option>`).join('');
+}
+function openReport(from, preset) {
+  RP.from = from;
+  $id('reportForm').reset(); $id('reportNote').textContent = ''; $id('reportSend').disabled = false;
+  if (preset) { $id('reportCat').value = preset.cat; $id('reportTarget').value = preset.target; }
+  fillNames();
+  $id('report').hidden = false; document.body.style.overflow = 'hidden';
+  (preset ? $id('reportText') : $id('reportTarget')).focus();
+}
+function closeReport() {
+  $id('report').hidden = true; document.body.style.overflow = '';
+  if (RP.from && document.contains(RP.from)) RP.from.focus();
+}
+if (!STATIC) {
+  $id('reportOpen').hidden = false; $id('rvReport').hidden = false;
+  $id('reportOpen').addEventListener('click', e => openReport(e.currentTarget));
+  $id('rvReport').addEventListener('click', () => {
+    const { tab, x } = itemOf(RV.key); const from = RV.from;
+    closeReview();
+    openReport(from, { cat: Object.keys(CAT_TAB).find(k => CAT_TAB[k] === tab), target: x.n });
+  });
+  $id('reportCat').addEventListener('change', fillNames);
+  $id('reportClose').addEventListener('click', closeReport);
+  $id('report').addEventListener('click', e => { if (e.target === $id('report')) closeReport(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$id('report').hidden) closeReport(); });
+  $id('reportForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const text = $id('reportText').value.trim();
+    if (text.length < 5) { $id('reportNote').textContent = '내용을 5자 이상 적어 주세요.'; $id('reportText').focus(); return; }
+    $id('reportSend').disabled = true;
+    try {
+      await post('/api/report', { kind: new FormData($id('reportForm')).get('kind'), cat: $id('reportCat').value, target: $id('reportTarget').value.trim(), text, contact: $id('reportContact').value.trim() });
+      $id('reportNote').textContent = '제보 고마워요! 확인 후 사이트에 반영할게요.';
+      setTimeout(() => { if (!$id('report').hidden) closeReport(); }, 1600);
+    } catch (err) { $id('reportNote').textContent = err.message; $id('reportSend').disabled = false; }
+  });
+}
+
+// ---- AI 도우미 (내 PC 실행판에서만: 서버가 Ollama 의 EXAONE 에게 물어봄) ----
+// 장소·정보 질문: 서버가 데이터에서 고른 '카드'(사실)와 AI 의 짧은 공감 문장을 보냄. 그냥 대화: AI 답을 글자 단위로 받음
+if (!STATIC) {
+  const AI = { history: [], ctrl: null };
+  const aiPanel = $id('aiPanel'), aiLog = $id('aiLog'), aiInput = $id('aiInput'), aiSend = $id('aiSend');
+  $id('aiFab').hidden = false;
+  const openAI = () => { aiPanel.hidden = false; $id('aiFab').setAttribute('aria-expanded', 'true'); const c = $id('chat'); if (c) c.hidden = true; aiInput.focus(); };
+  const closeAI = () => { if (AI.ctrl) AI.ctrl.abort(); aiPanel.hidden = true; $id('aiFab').setAttribute('aria-expanded', 'false'); };
+  $id('aiFab').addEventListener('click', () => aiPanel.hidden ? openAI() : closeAI());
+  $id('aiClose').addEventListener('click', closeAI);
+  $id('fab').addEventListener('click', () => { if (!aiPanel.hidden) closeAI(); });   // 실시간 수다를 열면 AI 창은 닫음
+  const bubble = (who, text) => {
+    const d = document.createElement('div'); d.className = 'ai-msg ' + who;
+    const p = document.createElement('p'); p.textContent = text; d.append(p);
+    aiLog.append(d); aiLog.scrollTop = aiLog.scrollHeight; return d;
+  };
+  const addCards = (box, cards) => {
+    if (!cards.length) return;
+    const wrap = document.createElement('div'); wrap.className = 'ai-cards';
+    for (const c of cards) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'ai-card'; b.dataset.open = c.key;
+      const n = document.createElement('b'); n.textContent = c.name;
+      const f = document.createElement('span'); f.textContent = c.facts.join(' · ');
+      const g = document.createElement('em'); g.textContent = '리뷰·자세히 →';
+      b.append(n, f, g); wrap.append(b);
+    }
+    box.append(wrap); aiLog.scrollTop = aiLog.scrollHeight;
+  };
+  aiLog.addEventListener('click', e => {
+    const s = e.target.closest('[data-q]'); if (s) { aiInput.value = s.dataset.q; return ask(); }
+    const c = e.target.closest('[data-open]'); if (c) openReview(c.dataset.open, c);
+  });
+  async function ask() {
+    const q = aiInput.value.trim();
+    if (!q || AI.ctrl) return;
+    const sugg = $id('aiSugg'); if (sugg) sugg.remove();
+    bubble('me', q); aiInput.value = '';
+    const box = bubble('bot', ''), p = box.querySelector('p');
+    box.classList.add('typing'); p.textContent = '생각하는 중…';
+    aiSend.textContent = '멈추기'; AI.ctrl = new AbortController();
+    let answer = '', started = false;
+    try {
+      const r = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q, history: AI.history }), signal: AI.ctrl.signal });
+      const reader = r.body.getReader(), dec = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const blk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const ev = (blk.match(/^event: (\w+)/m) || [])[1], data = JSON.parse((blk.match(/^data: (.*)$/m) || [, '{}'])[1]);
+          if (ev === 'delta') { if (!started) { p.textContent = ''; started = true; box.classList.remove('typing'); } answer += data.text; p.textContent = answer; aiLog.scrollTop = aiLog.scrollHeight; }
+          if (ev === 'answer') {
+            box.classList.remove('typing');
+            if (data.intro) { answer = data.intro; p.textContent = answer; } else if (!started) p.remove();
+            addCards(box, data.cards);
+            if (data.cards.length) answer += ' (추천: ' + data.cards.map(c => c.name).join(', ') + ')';
+          }
+          if (ev === 'error') { box.classList.remove('typing'); box.classList.add('err'); p.textContent = data.message; answer = ''; }
+        }
+      }
+    } catch (e) {
+      box.classList.remove('typing');
+      if (e.name === 'AbortError') { p.textContent = (answer || '') + (answer ? ' …' : '답변을 멈췄어요.'); }
+      else { box.classList.add('err'); p.textContent = 'AI에 연결하지 못했어요. "실행하기.bat"으로 연 사이트인지, Ollama가 켜져 있는지 확인해 주세요.'; }
+    }
+    if (answer) AI.history.push({ role: 'user', content: q }, { role: 'assistant', content: answer.slice(0, 400) });
+    AI.history = AI.history.slice(-8);
+    AI.ctrl = null; aiSend.textContent = '보내기'; aiInput.focus();
+  }
+  $id('aiForm').addEventListener('submit', e => { e.preventDefault(); if (AI.ctrl) { AI.ctrl.abort(); return; } ask(); });
+}
 
 render();
 })();

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>관리자 · 교통대 어디 갈까</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+/* 관리자 페이지: 위 제목·탭(고정), 아래 탭별 내용. 현황판은 숫자 타일 + 순위 3개 */
+.admin { max-width: 1000px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 64px; display: grid; gap: 14px; }
+.admin-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.admin-head h1 { font-size: 28px; }
+.admin-head h1 small { font-family: var(--body); font-size: 12px; font-weight: 600; color: var(--surface); background: var(--ink); padding: 2px 8px; border-radius: 6px; vertical-align: middle; margin-left: 6px; letter-spacing: .3px; }
+.admin-head a { color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; }
+.atabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding-block: 8px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.atabs button { font: inherit; font-weight: 600; font-size: 14px; padding: 10px 4px; border: 0; border-radius: 10px; background: var(--chip); color: var(--muted); cursor: pointer; }
+.atabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+.atabs .badge { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.atabs .badge:empty { display: none; }
+.live { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.live.on i { background: var(--ok); }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 2px; }
+.stat span { font-size: 12.5px; color: var(--muted); }
+.stat b { font-family: var(--display); font-weight: 400; font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat.warn b { color: var(--accent); }
+.ranks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { .ranks { grid-template-columns: minmax(0, 1fr); } }
+.rank { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; min-width: 0; }
+.rank h3 { margin: 0 0 8px; font-size: 14px; }
+.rank ol { margin: 0; padding-left: 20px; display: grid; gap: 5px; font-size: 13.5px; }
+.rank li span { color: var(--muted); font-size: 12px; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.rank .none { color: var(--muted); font-size: 13px; margin: 0; }
+.rp { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 8px; min-width: 0; }
+.rp.done { opacity: .55; }
+.rp-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12.5px; }
+.rp-kind { font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+.rp-time { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rp-target { margin: 0; font-size: 15.5px; font-weight: 600; word-break: keep-all; }
+.rp-text { margin: 0; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rp-meta { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.rp-act { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.btn { font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); cursor: pointer; }
+.btn.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.btn.danger { background: var(--down); color: #fff; border-color: transparent; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tools input { flex: 1; min-width: 180px; font: inherit; font-size: 14px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.up { color: var(--up); font-weight: 600; } td.down { color: var(--down); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+.msg { font-size: 13px; color: var(--accent); min-height: 1.2em; margin: 0; }
+</style>
+</head>
+<body>
+<main class="admin">
+  <div class="admin-head">
+    <h1>교통대 어디 갈까 <small>관리자</small></h1>
+    <div class="tools"><span class="live" id="live"><i></i><span>연결 중…</span></span><a href="./">← 사이트로</a><button type="button" class="btn" id="leave">나가기</button></div>
+  </div>
+  <nav class="atabs" role="tablist" id="tabs">
+    <button role="tab" data-t="dash" aria-selected="true">현황판</button>
+    <button role="tab" data-t="reports" aria-selected="false">제보함<span class="badge" id="bReports"></span></button>
+    <button role="tab" data-t="reviews" aria-selected="false">리뷰 관리<span class="badge" id="bReviews"></span></button>
+    <button role="tab" data-t="votes" aria-selected="false">추천 관리</button>
+  </nav>
+  <p class="msg" id="msg" role="status"></p>
+  <section id="view"></section>
+</main>
+<script>
+// 내 PC에서만 열리는 관리자 페이지. 새 리뷰·추천·제보가 오면 저절로 새로 고침
+const TAB = { food: '맛집', spot: '숨은장소', tip: '생활꿀팁', free: '자유' };
+const st = { t: 'dash', rf: 'todo', q: '' };
+let cache = {};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const when = t => { const d = new Date(t), p = v => String(v).padStart(2, '0'); return `${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+const get = async u => { const r = await fetch(u); const j = await r.json(); if (!r.ok) throw new Error(j.error || '불러오지 못했어요'); return j; };
+const post = async (u, b) => { const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || '실패했어요'); return j; };
+const say = t => { $('msg').textContent = t; clearTimeout(say.t); say.t = setTimeout(() => $('msg').textContent = '', 3000); };
+
+async function load() {
+  try {
+    const [ov, reports, reviews, votes] = await Promise.all([get('/api/admin/overview'), get('/api/reports'), get('/api/admin/reviews'), get('/api/admin/votes')]);
+    cache = { ov, reports, reviews, votes };
+    $('bReports').textContent = ov.reportsTodo || '';
+    $('bReviews').textContent = reviews.length || '';
+    paint();
+  } catch (e) {
+    if (/관리자만/.test(e.message)) { location.href = './'; return; } // 출입증이 만료됐으면 사이트로
+    $('view').innerHTML = `<p class="empty">${esc(e.message)}</p>`;
+  }
+}
+
+function rankList(title, rows, val) {
+  return `<div class="rank"><h3>${title}</h3>${rows.length ? `<ol>${rows.map(r => `<li>${esc(r.name)}<span>${TAB[r.tab] || ''} · ${val(r)}</span></li>`).join('')}</ol>` : '<p class="none">아직 없어요</p>'}</div>`;
+}
+const views = {
+  dash: () => {
+    const o = cache.ov;
+    return `<div class="stats">
+        <div class="stat"><span>지금 접속 중 (이 화면 포함)</span><b>${o.online}</b></div>
+        <div class="stat ${o.reportsTodo ? 'warn' : ''}"><span>처리 안 한 제보</span><b>${o.reportsTodo}</b></div>
+        <div class="stat"><span>리뷰</span><b>${o.reviews}</b></div>
+        <div class="stat"><span>추천 / 비추천</span><b>${o.ups} / ${o.downs}</b></div>
+      </div>
+      <div class="ranks" style="margin-top:12px">
+        ${rankList('👍 추천 많은 곳', o.topUp, r => `추천 ${r.up}`)}
+        ${rankList('💬 리뷰 많은 곳', o.topReview, r => `리뷰 ${r.n}`)}
+        ${rankList('👎 비추천 많은 곳', o.topDown, r => `비추천 ${r.down}`)}
+      </div>`;
+  },
+  reports: () => {
+    const all = cache.reports, todo = all.filter(r => !r.done).length;
+    const rows = all.filter(r => st.rf === 'all' || (st.rf === 'done' ? r.done : !r.done));
+    return `<div class="filters" style="margin-top:0">
+        ${[['todo', `처리 전 ${todo}`], ['done', `처리 완료 ${all.length - todo}`], ['all', `전체 ${all.length}`]].map(([k, l]) => `<button type="button" class="chip" data-rf="${k}" aria-pressed="${st.rf === k}">${l}</button>`).join('')}
+      </div>
+      <div class="list" style="grid-template-columns:minmax(0,1fr);margin-top:12px">${rows.length ? rows.map(r => `
+        <article class="rp${r.done ? ' done' : ''}">
+          <div class="rp-top"><span class="rp-kind">${esc(r.kind)}</span><span class="tag">${esc(r.cat)}</span><span class="rp-time">${when(r.at)}</span></div>
+          <p class="rp-target">${r.target ? esc(r.target) : '<span class="unk">대상 없음</span>'}</p>
+          <p class="rp-text">${esc(r.text)}</p>
+          <div class="rp-meta">보낸 곳: ${esc(r.from)}${r.contact ? ` · 연락처: ${esc(r.contact)}` : ''}</div>
+          <div class="rp-act" data-id="${esc(r.id)}" data-kind="report">
+            <button type="button" class="btn ${r.done ? '' : 'ok'}" data-act="toggle">${r.done ? '처리 전으로 되돌리기' : '처리 완료'}</button>
+            <button type="button" class="btn" data-act="ask">삭제</button>
+          </div>
+        </article>`).join('') : `<p class="empty">${st.rf === 'todo' ? '처리할 제보가 없어요.' : '제보가 없어요.'}</p>`}</div>`;
+  },
+  reviews: () => {
+    const q = st.q.trim().toLowerCase();
+    const rows = cache.reviews.filter(r => !q || [r.place, r.name, r.text].some(v => String(v).toLowerCase().includes(q)));
+    return `<div class="tools"><input id="rq" type="search" placeholder="장소·닉네임·내용으로 찾기" value="${esc(st.q)}" aria-label="리뷰 찾기"><span class="rp-meta">${rows.length}개</span></div>
+      <div class="list" style="grid-template-columns:minmax(0,1fr);margin-top:12px">${rows.length ? rows.map(r => `
+        <article class="rp">
+          <div class="rp-top"><span class="tag">${TAB[r.tab] || ''}</span><b>${esc(r.place)}</b><span class="rp-time">${when(r.at)}</span></div>
+          <p class="rp-text">${esc(r.text)}</p>
+          <div class="rp-meta">${esc(r.name)} (${esc(r.ip)})</div>
+          <div class="rp-act" data-id="${esc(r.id)}" data-key="${esc(r.key)}" data-kind="review"><button type="button" class="btn" data-act="ask">삭제</button></div>
+        </article>`).join('') : `<p class="empty">${q ? '찾는 리뷰가 없어요.' : '아직 리뷰가 없어요.'}</p>`}</div>`;
+  },
+  votes: () => {
+    const rows = cache.votes;
+    return rows.length ? `<div class="tablewrap"><table>
+        <thead><tr><th>장소</th><th>분류</th><th style="text-align:right">추천</th><th style="text-align:right">비추천</th><th style="text-align:right">누른 사람</th><th></th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${TAB[r.tab] || ''}</td><td class="num up">${r.up}</td><td class="num down">${r.down}</td><td class="num">${r.voters}</td>
+          <td><span class="rp-act" data-key="${esc(r.key)}" data-kind="votes"><button type="button" class="btn" data-act="ask">초기화</button></span></td></tr>`).join('')}</tbody>
+      </table></div><p class="rp-meta" style="margin-top:8px">초기화하면 추천·비추천이 0이 되고, 이미 눌렀던 사람도 다시 누를 수 있어요.</p>`
+      : '<p class="empty">아직 추천·비추천이 없어요.</p>';
+  },
+};
+function paint() {
+  document.querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.t === st.t)));
+  const focus = document.activeElement && document.activeElement.id === 'rq' ? document.activeElement.selectionStart : null;
+  $('view').innerHTML = views[st.t]();
+  if (focus !== null && $('rq')) { $('rq').focus(); $('rq').setSelectionRange(focus, focus); }
+}
+
+$('tabs').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { st.t = b.dataset.t; paint(); } });
+$('view').addEventListener('input', e => { if (e.target.id === 'rq') { st.q = e.target.value; paint(); } });
+$('view').addEventListener('click', async e => {
+  const f = e.target.closest('[data-rf]'); if (f) { st.rf = f.dataset.rf; return paint(); }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const box = b.closest('[data-kind]'), kind = box.dataset.kind, act = b.dataset.act;
+  if (act === 'ask') { // 한 번 더 확인
+    box.dataset.html = box.innerHTML;
+    box.innerHTML = `<span class="rp-meta">정말 ${kind === 'votes' ? '초기화' : '삭제'}할까요?</span><button type="button" class="btn danger" data-act="yes">${kind === 'votes' ? '초기화' : '삭제'}</button><button type="button" class="btn" data-act="no">취소</button>`;
+    return;
+  }
+  if (act === 'no') { box.innerHTML = box.dataset.html; return; }
+  try {
+    if (kind === 'report' && act === 'toggle') { const r = cache.reports.find(x => x.id === box.dataset.id); await post('/api/report/update', { id: r.id, done: !r.done }); say(r.done ? '처리 전으로 되돌렸어요.' : '처리 완료로 표시했어요.'); }
+    if (kind === 'report' && act === 'yes') { await post('/api/report/update', { id: box.dataset.id, action: 'delete' }); say('제보를 지웠어요.'); }
+    if (kind === 'review' && act === 'yes') { await post('/api/admin/review/delete', { key: box.dataset.key, id: box.dataset.id }); say('리뷰를 지웠어요.'); }
+    if (kind === 'votes' && act === 'yes') { await post('/api/admin/votes/reset', { key: box.dataset.key }); say('추천·비추천을 초기화했어요.'); }
+  } catch (err) { say(err.message); }
+  load();
+});
+
+// 실시간: 리뷰·추천·제보가 바뀌면 다시 불러오기, 접속자 수 반영
+const es = new EventSource('/events');
+let t = null; const soon = () => { clearTimeout(t); t = setTimeout(load, 300); };
+es.addEventListener('open', () => { $('live').classList.add('on'); $('live').lastElementChild.textContent = '실시간 반영 중'; });
+es.addEventListener('error', () => { $('live').classList.remove('on'); $('live').lastElementChild.textContent = '서버 연결 끊김'; });
+es.addEventListener('review', soon);
+es.addEventListener('report', () => { soon(); say('📮 새 제보가 도착했어요.'); });
+es.addEventListener('count', e => { if (cache.ov) { cache.ov.online = Number(e.data) || 0; if (st.t === 'dash') paint(); } });
+// 나가기: 출입증 지우고 사이트로
+$('leave').addEventListener('click', async () => { try { await fetch('/api/admin/leave', { method: 'POST' }); } catch (e) {} location.href = './'; });
+load();
+</script>
+</body>
+</html>
