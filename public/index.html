@@ -4,33 +4,62 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>교통대 어디 갈까</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 30C10 22 7 18 7 13a9 9 0 0 1 18 0c0 5-3 9-9 17z' fill='%23D9480F'/%3E%3Ccircle cx='16' cy='13' r='3.5' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 30C10 22 7 18 7 13a9 9 0 0 1 18 0c0 5-3 9-9 17z' fill='%230066CC'/%3E%3Ccircle cx='16' cy='13' r='3.5' fill='%23fff'/%3E%3C/svg%3E">
 <!-- 인터넷이 없으면 이 글꼴은 안 불러와지고 PC 기본 글꼴(맑은 고딕)로 보여요 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<!-- 아이콘 (Phosphor). 인터넷이 없으면 아이콘만 안 보이고 글자는 그대로 -->
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
 <link rel="stylesheet" href="style.css">
+<!-- 기본은 밝은 화면. 위쪽 버튼으로 다크 모드를 켜면 이 브라우저에 기억 (그리기 전에 정해서 깜빡임 없음) -->
+<script>try { document.documentElement.dataset.theme = localStorage.getItem("kd-theme") === "dark" ? "dark" : "light"; } catch (e) { document.documentElement.dataset.theme = "light"; }</script>
 </head>
 <body>
-<div class="wrap">
-  <header class="hero">
-    <div class="hero-left">
-      <div class="brand">
-        <p class="kicker">한국교통대 충주캠퍼스 · 학생들이 만든 생활 안내서</p>
-        <h1>교통대 <em>어디 갈까</em></h1>
-        <p class="src">학생 21명이 추천한 맛집 · 숨은장소 · 꿀팁 <b>442</b>개</p>
-      </div>
-      <div class="search"><input id="q" type="search" placeholder="가게, 메뉴, 장소, 꿀팁 검색" aria-label="검색"></div>
-      <button type="button" class="report-cta" id="reportOpen" hidden>정보가 틀렸거나 추가할 곳이 있나요? <b>제보하기 →</b></button>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="logo" href="#home" aria-label="교통대 어디 갈까 홈">
+      <span class="logo-ic" aria-hidden="true"><i class="ph-fill ph-map-pin-line"></i></span>
+      <span class="logo-txt"><b>교통대 어디 갈까</b><small>한국교통대 충주캠퍼스</small></span>
+    </a>
+    <nav class="tabs" role="tablist" id="tabs" aria-label="메뉴"></nav>
+    <div class="top-icons">
+      <button type="button" class="icon-btn" id="searchToggle" aria-label="검색" aria-expanded="false" aria-controls="searchBar"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
+      <button type="button" class="icon-btn" id="themeToggle" aria-pressed="false" aria-label="다크 모드 켜기"><i class="ph ph-moon" aria-hidden="true"></i></button>
+      <button type="button" class="icon-btn" id="qrOpen" aria-label="폰으로 보기 (QR)"><i class="ph ph-qr-code" aria-hidden="true"></i></button>
     </div>
-    <aside class="tipbox" id="tipbox" aria-label="교통대 꿀팁">
-      <div class="tip-top"><span class="tip-badge">TIP</span><span class="tip-tag" id="tipTag"></span><button type="button" class="tip-next" id="tipNext" aria-label="다음 팁 보기">다음 ▶</button></div>
-      <div class="tip-body" id="tipBody" aria-live="polite"><p class="tip-q" id="tipQ">교통대 생활, 막막하다면?</p><p class="tip-a" id="tipA">10초마다 선배들의 꿀팁이 바뀌어요.</p></div>
-      <div class="tip-foot"><button type="button" class="tip-more" id="tipMore" hidden>자세히 보기 →</button><span class="tip-bar"><span id="tipBar"></span></span></div>
+  </div>
+  <div class="searchbar" id="searchBar" hidden>
+    <div class="searchbar-in"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="q" type="search" placeholder="가게, 메뉴, 장소, 꿀팁 검색" aria-label="검색"></div>
+  </div>
+</header>
+<div class="wrap">
+  <section class="banner" id="banner" hidden aria-label="오늘의 추천"></section>
+  <div class="layout" id="layout">
+    <aside class="side" id="side" aria-label="바로가기">
+      <div class="w-card w-intro">
+        <span class="w-ic" aria-hidden="true"><i class="ph-fill ph-student"></i></span>
+        <div><h3>학생 21명의 추천</h3><p>맛집 · 숨은장소 · 꿀팁 <b>442</b>개</p></div>
+      </div>
+      <div class="w-card w-acts">
+        <button type="button" class="w-act" data-pick><span class="w-act-ic" aria-hidden="true"><i class="ph-fill ph-fork-knife"></i></span><span class="w-act-txt"><b>뭐 먹지? 골라줘</b><small>조건을 고르면 한 곳을 뽑아 줘요</small></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>
+        <button type="button" class="w-act" data-course><span class="w-act-ic green" aria-hidden="true"><i class="ph-fill ph-path"></i></span><span class="w-act-txt"><b>공강 코스 짜 줘</b><small>밥 → 카페 → 산책 코스</small></span><i class="ph ph-caret-right" aria-hidden="true"></i></button>
+      </div>
+      <aside class="tipbox" id="tipbox" aria-label="오늘의 꿀팁">
+        <div class="tip-top"><span class="tip-badge">TIP</span><span class="tip-tag" id="tipTag"></span><button type="button" class="tip-next" id="tipNext" aria-label="다음 팁 보기">다음 ▶</button></div>
+        <div class="tip-body" id="tipBody" aria-live="polite"><p class="tip-q" id="tipQ">교통대 생활, 막막하다면?</p><p class="tip-a" id="tipA">10초마다 선배들의 꿀팁이 바뀌어요.</p></div>
+        <div class="tip-foot"><button type="button" class="tip-more" id="tipMore" hidden>자세히 보기 →</button><span class="tip-bar"><span id="tipBar"></span></span></div>
+      </aside>
+      <div class="w-grid">
+        <button type="button" class="w-btn" data-sc="map"><i class="ph ph-map-trifold" aria-hidden="true"></i> 맛집 지도</button>
+        <button type="button" class="w-btn" data-sc="cheap"><i class="ph ph-coins" aria-hidden="true"></i> 8천원 이하</button>
+        <button type="button" class="w-btn" data-sc="study"><i class="ph ph-books" aria-hidden="true"></i> 공부할 곳</button>
+        <button type="button" class="w-btn" data-sc="bus"><i class="ph ph-bus" aria-hidden="true"></i> 버스·교통</button>
+      </div>
+      <button type="button" class="w-card w-report" id="reportOpen" hidden><i class="ph ph-megaphone" aria-hidden="true"></i><span>정보가 틀렸거나 추가할 곳이 있나요?<b>제보하기 →</b></span></button>
     </aside>
-  </header>
-  <nav class="tabs" role="tablist" id="tabs"></nav>
-  <main id="view"></main>
+    <main id="view"></main>
+  </div>
   <button class="fab ai-fab" id="aiFab" type="button" aria-expanded="false" aria-controls="aiPanel" hidden><span class="ai-spark" aria-hidden="true">✦</span>AI에게 물어보기</button>
   <section class="ai-panel" id="aiPanel" hidden aria-label="AI 도우미">
     <div class="ai-head"><div><b>교통대 AI 도우미</b><small>학생들이 추천한 정보 안에서만 답해요 · 내 PC의 EXAONE</small></div><button type="button" class="ai-x" id="aiClose" aria-label="AI 도우미 닫기">×</button></div>
@@ -59,15 +88,22 @@
         <div class="rv-headtxt"><span class="tag" id="rvTag"></span><h2 id="rvTitle"></h2><span class="rv-rec" id="rvRec"></span></div>
         <button type="button" class="rv-x" id="rvClose" aria-label="리뷰 창 닫기">×</button>
       </div>
+      <div class="rv-info" id="rvInfo"></div>
       <div class="rv-votes">
         <button type="button" class="rv-vote up" id="rvUpBtn" aria-pressed="false"><span>추천</span><b id="rvUp">0</b></button>
         <span class="best" id="rvBest" hidden>개념</span>
         <button type="button" class="rv-vote down" id="rvDownBtn" aria-pressed="false"><span>비추천</span><b id="rvDown">0</b></button>
       </div>
+      <div class="rv-acts">
+        <button type="button" class="act-btn fav wide" id="rvFav" aria-pressed="false">♡ 찜하기</button>
+        <button type="button" class="act-btn wide" id="rvShare">공유하기</button>
+      </div>
       <p class="rv-note" id="rvNote" role="status"></p>
       <button type="button" class="rv-report" id="rvReport" hidden>이 정보가 틀렸나요? 제보하기 →</button>
-      <h3 class="rv-h">리뷰 <b id="rvCount">0</b></h3>
+      <div class="rv-near" id="rvNear" hidden></div>
+      <h3 class="rv-h rv-reviews-h">리뷰 <b id="rvCount">0</b></h3>
       <ul class="rv-list" id="rvList"></ul>
+      <p class="rv-static-note">리뷰 · 추천은 내 PC에서 실행한 버전에서 쓸 수 있어요.</p>
       <form class="rv-form" id="rvForm" autocomplete="off">
         <div class="rv-id"><input id="rvName" maxlength="12" placeholder="닉네임 (비우면 ㅇㅇ)" aria-label="닉네임"><input id="rvPw" type="password" maxlength="20" placeholder="비밀번호 4자 이상" aria-label="비밀번호"></div>
         <textarea id="rvText" maxlength="300" rows="3" placeholder="이 곳 어땠나요? (300자)" aria-label="리뷰 내용"></textarea>
@@ -93,6 +129,36 @@
       <button type="button" class="pick-go" id="pickGo">돌리기</button>
     </section>
   </div>
+  <div class="rv-back" id="course" hidden>
+    <section class="rv course" role="dialog" aria-modal="true" aria-labelledby="courseTitle">
+      <div class="rv-head">
+        <div class="rv-headtxt"><h2 id="courseTitle">공강 코스 짜 주기</h2><span class="rv-rec">학교에서 걸어서 다녀올 수 있는 코스를 골라 드려요</span></div>
+        <button type="button" class="rv-x" id="courseClose" aria-label="코스 창 닫기">×</button>
+      </div>
+      <div class="filters pick-opts" id="courseOpts">
+        <button type="button" class="chip" data-copt="meal" aria-pressed="true">🍚 밥</button>
+        <button type="button" class="chip" data-copt="cafe" aria-pressed="true">☕ 카페</button>
+        <button type="button" class="chip" data-copt="walk" aria-pressed="true">🌳 산책·쉼</button>
+        <button type="button" class="chip" data-copt="near" aria-pressed="true">학교 앞만 (도보 15분 안)</button>
+      </div>
+      <p class="pick-count" id="courseSum" aria-live="polite"></p>
+      <ol class="course-steps" id="courseSteps"></ol>
+      <div class="course-map" id="courseMap" aria-hidden="true"></div>
+      <button type="button" class="pick-go" id="courseGo">다른 코스 짜기</button>
+    </section>
+  </div>
+  <div class="rv-back" id="qr" hidden>
+    <section class="rv qr" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+      <div class="rv-head">
+        <div class="rv-headtxt"><h2 id="qrTitle">폰으로 보기</h2><span class="rv-rec">카메라로 찍으면 바로 열려요</span></div>
+        <button type="button" class="rv-x" id="qrClose" aria-label="QR 창 닫기">×</button>
+      </div>
+      <div class="qr-img"><svg role="img" aria-label="사이트 주소 QR 코드" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 35 35" shape-rendering="crispEdges"><path fill="#FFFFFF" d="M0 0h35v35H0z"/><path stroke="#17223A" d="M1 1.5h7m2 0h3m1 0h1m2 0h2m1 0h2m2 0h1m2 0h7M1 2.5h1m5 0h1m2 0h3m1 0h5m2 0h3m3 0h1m5 0h1M1 3.5h1m1 0h3m1 0h1m1 0h1m1 0h4m2 0h3m2 0h3m2 0h1m1 0h3m1 0h1M1 4.5h1m1 0h3m1 0h1m1 0h1m2 0h1m2 0h1m1 0h1m2 0h1m2 0h1m1 0h1m1 0h1m1 0h3m1 0h1M1 5.5h1m1 0h3m1 0h1m1 0h3m4 0h1m2 0h1m4 0h2m1 0h1m1 0h3m1 0h1M1 6.5h1m5 0h1m1 0h1m2 0h1m1 0h4m3 0h2m4 0h1m5 0h1M1 7.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 8.5h1m2 0h1m2 0h2m2 0h4m2 0h1M1 9.5h1m1 0h5m2 0h3m1 0h3m1 0h1m1 0h1m2 0h3m1 0h5M4 10.5h3m1 0h4m3 0h1m3 0h4m1 0h1m2 0h2m1 0h2m1 0h1M5 11.5h5m1 0h1m1 0h1m2 0h2m1 0h1m1 0h1m1 0h1m1 0h2m2 0h1m1 0h2M1 12.5h2m3 0h1m1 0h1m1 0h2m1 0h1m1 0h1m1 0h1m2 0h5m1 0h1m2 0h3M2 13.5h3m1 0h2m1 0h1m3 0h1m5 0h1m3 0h3m2 0h3m1 0h1M4 14.5h3m1 0h1m1 0h1m2 0h1m1 0h4m1 0h1m3 0h1m2 0h1m2 0h1m1 0h2M3 15.5h7m1 0h1m1 0h2m4 0h1m1 0h1m1 0h1m1 0h3m2 0h1m1 0h1M1 16.5h1m1 0h2m3 0h4m5 0h1m1 0h1m2 0h2m2 0h3m1 0h2M1 17.5h4m1 0h10m2 0h1m4 0h1m1 0h2m1 0h2m3 0h1M1 18.5h1m2 0h1m1 0h1m2 0h4m2 0h1m1 0h2m1 0h5m2 0h2m1 0h4M4 19.5h7m4 0h4m3 0h1m3 0h4m1 0h2M1 20.5h1m2 0h1m3 0h1m2 0h6m1 0h7m1 0h1m1 0h6M1 21.5h2m1 0h1m2 0h1m1 0h3m1 0h1m1 0h1m1 0h1m2 0h1m2 0h4m1 0h3m1 0h2M1 22.5h3m2 0h1m1 0h4m1 0h1m1 0h2m2 0h4m1 0h1m2 0h1m2 0h1m2 0h1M1 23.5h1m3 0h4m1 0h8m3 0h1m5 0h2m3 0h1M1 24.5h1m3 0h1m3 0h1m1 0h4m1 0h1m3 0h1m1 0h3m2 0h1m2 0h2M1 25.5h1m4 0h2m1 0h2m1 0h1m2 0h2m1 0h1m1 0h1m2 0h7m2 0h1M9 26.5h1m2 0h2m1 0h1m1 0h1m1 0h2m2 0h1m1 0h1m3 0h1m1 0h1m1 0h1M1 27.5h7m5 0h1m2 0h1m2 0h1m1 0h5m1 0h1m1 0h1m1 0h2M1 28.5h1m5 0h1m1 0h1m5 0h1m1 0h1m4 0h1m1 0h2m3 0h4M1 29.5h1m1 0h3m1 0h1m1 0h2m1 0h1m6 0h2m2 0h1m1 0h6m2 0h1M1 30.5h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h1m1 0h2m2 0h3m1 0h3m2 0h5M1 31.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m2 0h2m1 0h1m2 0h2m1 0h2m1 0h1M1 32.5h1m5 0h1m3 0h1m1 0h1m1 0h1m1 0h1m1 0h2m1 0h2m2 0h1m2 0h3M1 33.5h7m1 0h2m1 0h1m1 0h2m2 0h3m2 0h4m1 0h1m3 0h1"/></svg></div>
+      <p class="qr-url">jeonghossi.github.io/gyotongdae-eodi-galkka</p>
+      <button type="button" class="pick-go" id="qrCopy">주소 복사하기</button>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
   <div class="rv-back intro-back" id="intro" hidden>
     <section class="rv intro" role="dialog" aria-modal="true" aria-labelledby="introTitle">
       <div class="rv-head">
@@ -103,7 +169,7 @@
       <div class="intro-cols">
         <div class="intro-col ok">
           <h3>✅ 여기서 되는 것</h3>
-          <ul><li>맛집 · 숨은장소 · 꿀팁 보기</li><li>카테고리 · 필터 · 검색</li><li>뭐 먹지? 골라주기</li><li>지도로 보기 · 로드뷰 링크</li><li>10초마다 바뀌는 TIP</li></ul>
+          <ul><li>맛집 · 숨은장소 · 꿀팁 보기</li><li>카테고리 · 필터 · 검색</li><li>뭐 먹지? 골라주기</li><li>지도로 보기 · 로드뷰 링크</li><li>공강 코스 짜 주기 · 찜하기 · 공유</li><li>가게·장소 자세히 보기 (가격·위치·가까운 곳)</li><li>10초마다 바뀌는 TIP</li></ul>
         </div>
         <div class="intro-col no">
           <h3>❌ 여기서 안 되는 것</h3>
@@ -146,8 +212,14 @@
     </section>
   </div>
   <p class="static-note" id="staticNote" hidden>이 페이지는 <b>보기 전용판</b>이에요. 리뷰·추천·실시간 채팅은 <a href="https://github.com/jeonghossi/gyotongdae-eodi-galkka" target="_blank" rel="noopener">GitHub에서 내려받아</a> 내 PC에서 실행하면 쓸 수 있어요.</p>
-  <footer>교통대 학생들이 직접 추천한 정보로 만든 사이트입니다. "확인 안 됨"은 원본에 정보가 없다는 뜻이에요.</footer>
 </div>
+<footer class="site-foot">
+  <div class="foot-in">
+    <div class="foot-logo"><i class="ph-fill ph-map-pin-line" aria-hidden="true"></i><b>교통대 어디 갈까</b></div>
+    <p class="foot-note">교통대 학생들이 직접 추천한 정보로 만든 사이트입니다. "확인 안 됨"은 원본에 정보가 없다는 뜻이에요.</p>
+    <a class="foot-link" href="https://github.com/jeonghossi/gyotongdae-eodi-galkka" target="_blank" rel="noopener"><i class="ph ph-github-logo" aria-hidden="true"></i> GitHub</a>
+  </div>
+</footer>
 <script src="app.js"></script>
 </body>
 </html>

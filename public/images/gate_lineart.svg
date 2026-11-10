@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 966 644" width="966" height="644" fill="none" stroke="#6B1D21" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+  <!-- ground -->
+  <line x1="0" y1="425" x2="966" y2="425" stroke-width="2"/>
+  <line x1="40" y1="470" x2="420" y2="470" stroke-width="1.5" opacity="0.5"/>
+  <line x1="60" y1="500" x2="380" y2="500" stroke-width="1.5" opacity="0.35"/>
+
+  <!-- trees behind (scalloped canopy) -->
+  <path stroke-width="2" opacity="0.55" d="M380 300 q12 -18 26 -4 q12 -20 28 -2 q14 -16 28 2 q16 -14 30 4 q14 -14 28 2 q14 -16 30 2 q16 -12 30 4 q12 -14 28 0 q14 -18 30 2 q12 -12 26 4 q14 -14 30 2 q14 -12 28 6 q16 -16 30 2 q14 -10 26 6 q14 -18 30 0 q14 -12 28 4 q14 -14 30 6 q12 -12 26 4 q14 -16 28 4 q14 -10 26 4 q12 -12 26 6"/>
+
+  <!-- LEFT GATE -->
+  <path d="M50 425 V234 Q58 214 95 213 Q150 222 215 298 L395 313 V425"/>
+  <path d="M74 425 V228 Q80 222 95 221 Q140 230 200 284 L372 299 V425" stroke-width="2"/>
+  <rect x="108" y="325" width="18" height="100" rx="2"/>
+  <rect x="150" y="325" width="27" height="100" rx="2"/>
+  <path d="M288 425 V332 Q323 306 358 332 V425" stroke-width="2.5"/>
+  <!-- stone courses -->
+  <g stroke-width="1.5" opacity="0.4">
+    <line x1="50" y1="270" x2="395" y2="270"/>
+    <line x1="50" y1="300" x2="395" y2="300"/>
+    <line x1="50" y1="360" x2="118" y2="360"/>
+    <line x1="142" y1="360" x2="176" y2="360"/>
+    <line x1="202" y1="360" x2="256" y2="360"/>
+    <line x1="284" y1="360" x2="356" y2="360"/>
+  </g>
+
+  <!-- CENTRAL TOWER -->
+  <rect x="518" y="203" width="47" height="222" rx="2"/>
+  <rect x="524" y="210" width="35" height="208" stroke-width="1.5" opacity="0.5"/>
+  <circle cx="541" cy="235" r="11"/>
+  <circle cx="541" cy="235" r="4" stroke-width="2"/>
+  <line x1="518" y1="300" x2="565" y2="300" stroke-width="1.5" opacity="0.4"/>
+  <line x1="518" y1="360" x2="565" y2="360" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- RIGHT GATE -->
+  <path d="M668 425 V328 H800 Q852 314 888 263 V322 Q898 292 907 285 V306 Q918 304 932 307 V425"/>
+  <path d="M690 425 V336 H790 Q838 326 872 284 V318 Q882 300 896 294 V312 Q906 310 916 311 V425" stroke-width="2"/>
+  <rect x="700" y="346" width="40" height="79" rx="2"/>
+  <rect x="790" y="346" width="28" height="79" rx="2"/>
+  <rect x="850" y="346" width="24" height="79" rx="2"/>
+  <rect x="888" y="346" width="18" height="79" rx="2" stroke-width="2"/>
+  <g stroke-width="1.5" opacity="0.4">
+    <line x1="668" y1="372" x2="932" y2="372"/>
+    <line x1="668" y1="400" x2="932" y2="400"/>
+  </g>
+
+  <!-- road lane markings -->
+  <g stroke-width="2.5">
+    <line x1="290" y1="520" x2="330" y2="520"/>
+    <line x1="350" y1="520" x2="400" y2="520"/>
+    <line x1="520" y1="520" x2="580" y2="520"/>
+  </g>
+</svg>

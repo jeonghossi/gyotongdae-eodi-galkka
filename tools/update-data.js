@@ -5,6 +5,7 @@
 const path = require('path');
 const fs = require('fs');
 const ExcelJS = require('exceljs');
+const { mergeDuplicates } = require('./merge-duplicates'); // 엑셀 속 중복 줄 합치기
 
 const N = '확인 안 됨';
 const file = process.argv[2];
@@ -46,6 +47,7 @@ function rows(ws) {
     w: text(r['언제']), l: text(r['위치']), u: text(r['지도']), r: Number(r['추천 수']) || 1 }));
 
   const data = { food, cats: [...new Set(food.map(f => f.c))], spot, tip: tip('생활꿀팁'), free: tip('자유') };
+  mergeDuplicates(data, console.log);
   const out = path.join(__dirname, '..', 'public', 'data', 'places.json');
   fs.writeFileSync(out, JSON.stringify(data));
   console.log(`완료: 맛집 ${food.length} · 숨은장소 ${spot.length} · 생활꿀팁 ${data.tip.length} · 자유 ${data.free.length}`);

@@ -4,6 +4,20 @@
 window.KD_STATIC = location.protocol === 'file:' || /.github.io$/.test(location.hostname);
 document.documentElement.classList.toggle('static', window.KD_STATIC);
 window.KD_ES = window.KD_STATIC ? null : new EventSource('/events');
+// 다크 모드 켜기/끄기: 기본은 밝은 화면, 고른 값은 이 브라우저에 기억 (index.html 머리에서 먼저 적용)
+(() => {
+  const btn = document.getElementById('themeToggle'); if (!btn) return;
+  const paint = () => { const dark = document.documentElement.dataset.theme === 'dark';
+    btn.innerHTML = `<i class="ph ${dark ? 'ph-sun' : 'ph-moon'}" aria-hidden="true"></i>`;
+    btn.setAttribute('aria-label', dark ? '밝은 모드로' : '다크 모드 켜기'); btn.setAttribute('aria-pressed', String(dark)); };
+  btn.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('kd-theme', next); } catch (e) {}
+    paint();
+  });
+  paint();
+})();
 (async () => {
 let D, COORDS;
 try {
@@ -51,14 +65,17 @@ if (STATIC) {
 let SUM = {};
 if (!STATIC) try { SUM = await fetch('/api/reviews/summary').then(r => r.ok ? r.json() : {}); } catch (e) {}
 const TABS = [
+  { id: 'home', label: '홈' },
   { id: 'food', label: '맛집', n: D.food.length },
   { id: 'spot', label: '숨은장소', n: D.spot.length },
   { id: 'tip', label: '생활꿀팁', n: D.tip.length },
   { id: 'free', label: '자유', n: D.free.length },
 ];
-const st = { tab: 'food', q: '', cat: '', cheap: false, sort: 'rec', area: '', use: '', topic: '', view: 'list' };
-try { const s = JSON.parse(localStorage.getItem('kd-tab') || 'null'); if (s && TABS.some(t => t.id === s)) st.tab = s; } catch (e) {}
+const st = { tab: 'home', q: '', cat: '', cheap: false, sort: 'rec', spotSort: 'rec', area: '', use: '', topic: '', view: 'list', favOnly: false };
 const h = location.hash.slice(1); if (TABS.some(t => t.id === h)) st.tab = h;
+// 공유 링크(#food/가게이름)로 들어오면 그 카드로 바로 이동
+const parseDeep = () => { const m = location.hash.slice(1).match(/^(food|spot|tip|free)\/(.+)$/); if (!m) return null; try { return { tab: m[1], n: decodeURIComponent(m[2]) }; } catch (e) { return null; } };
+const DEEP = parseDeep(); if (DEEP) st.tab = DEEP.tab;
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const won = p => p.toLocaleString('ko-KR') + '원';
@@ -70,13 +87,37 @@ const chips = (label, key, values) => `<span class="lbl">${label}</span>` + ['',
 const uniq = (arr, k) => [...new Set(arr.map(x => x[k]))];
 const BEST = 5; // 추천이 이만큼 넘으면 '개념' 표시
 const keyOf = (tab, x) => tab + ':' + x.n;
+
+// ---- 걸어서 몇 분: 학교(중앙도서관 근처)에서 직선거리 × 1.3 을 1분에 75m 걷는다고 보고 어림 ----
+const CAMPUS = [36.9688, 127.8702];
+const distM = (a, b) => { const r = d => d * Math.PI / 180, dLat = r(b[0] - a[0]), dLng = r(b[1] - a[1]);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(dLng / 2) ** 2; return 12742000 * Math.asin(Math.sqrt(s)); };
+const walkMin = m => Math.max(1, Math.round(m * 1.3 / 75));
+const fromCampus = x => COORDS[x.n] ? distM(CAMPUS, COORDS[x.n]) : null;
+const walkTxt = x => { const d = fromCampus(x); return d === null ? '' : walkMin(d) <= 30 ? '도보 ' + walkMin(d) + '분' : (d / 1000).toFixed(1) + 'km'; };
+const walkTag = x => { const d = fromCampus(x); if (d === null) return '';
+  const m = walkMin(d);
+  return m <= 30 ? `<span class="walk" title="학교에서 직선거리로 어림한 시간">🚶 도보 ${m}분</span>` : `<span class="walk far" title="학교에서 직선거리">🚌 ${(d / 1000).toFixed(1)}km</span>`; };
+
+// ---- 찜하기: 이 브라우저에만 저장 (로그인 없음) ----
+let FAV = new Set();
+try { FAV = new Set(JSON.parse(localStorage.getItem('kd-fav') || '[]')); } catch (e) {}
+const saveFav = () => { try { localStorage.setItem('kd-fav', JSON.stringify([...FAV])); } catch (e) {} };
+const favCount = tab => D[tab].filter(x => FAV.has(keyOf(tab, x))).length;
+const favChip = tab => `<button class="chip fav-chip" data-toggle="favOnly" aria-pressed="${st.favOnly}">♥ 찜한 곳만 <b data-favn>${favCount(tab)}</b></button>`;
+const isShown = (tab, x) => !st.favOnly || FAV.has(keyOf(tab, x));
+// 카드 아래 줄: 왼쪽 지도·로드뷰 링크, 오른쪽 공유·찜
+const acts = (tab, x, extra = '') => { const key = esc(keyOf(tab, x)), on = FAV.has(keyOf(tab, x));
+  return `<div class="acts">${mapLink(x.u)}${extra}<span class="acts-r">
+    <button type="button" class="act-btn" data-share="${key}" aria-label="${esc(x.n)} 공유하기">공유</button>
+    <button type="button" class="act-btn fav" data-fav="${key}" aria-pressed="${on}" aria-label="${esc(x.n)} 찜하기">${on ? '♥' : '♡'}</button></span></div>`; };
 const vbarInner = key => { const v = SUM[key] || { up: 0, down: 0, n: 0 };
   return `${v.up >= BEST ? '<span class="best">개념</span>' : ''}<span class="vu">추천 <b>${v.up}</b></span><span class="vd">비추천 <b>${v.down}</b></span><span class="vc">리뷰 <b>${v.n}</b></span>`; };
 const vbar = key => STATIC ? '' : `<div class="vbar"><span class="vnums" data-vk="${esc(key)}">${vbarInner(key)}</span><button type="button" class="open-rv" data-open="${esc(key)}">리뷰·추천 →</button></div>`;
 
 function renderTabs() {
   document.getElementById('tabs').innerHTML = TABS.map(t =>
-    `<button role="tab" data-tab="${t.id}" aria-selected="${st.tab === t.id}">${t.label}<small>${t.n}</small></button>`).join('');
+    `<button role="tab" data-tab="${t.id}" aria-selected="${st.tab === t.id}"${t.n ? ` title="${t.n}개"` : ''}>${t.label}</button>`).join('');
 }
 
 function foodView(q) {
@@ -86,23 +127,27 @@ function foodView(q) {
     return `<button class="tile" data-cat="${esc(c)}" aria-pressed="${st.cat === c}"><span class="ic" aria-hidden="true">${ic}</span><span class="nm">${esc(nm)}</span><span class="ct">${D.food.filter(f => f.c === c).length}곳</span></button>`;
   }).join('') + `</div>`;
   const filters = `<div class="filters">
-    <button class="chip" data-toggle="cheap" aria-pressed="${st.cheap}">1인 8천 원 이하</button>
+    <button class="chip" data-toggle="cheap" aria-pressed="${st.cheap}">1인 8천 원 이하</button>${favChip('food')}
     <label class="sort"><span class="lbl">정렬</span> <select id="sort">
       <option value="rec"${st.sort === 'rec' ? ' selected' : ''}>학생 추천순</option>
+      <option value="near"${st.sort === 'near' ? ' selected' : ''}>가까운 순</option>
       <option value="price"${st.sort === 'price' ? ' selected' : ''}>가격 낮은 순</option>
       ${STATIC ? '' : `<option value="vote"${st.sort === 'vote' ? ' selected' : ''}>추천 많은 순</option>`}</select></label></div>`;
-  let rows = D.food.filter(f => (!st.cat || f.c === st.cat) && (!st.cheap || (f.p !== null && f.p <= 8000)) && has(f, q));
+  let rows = D.food.filter(f => (!st.cat || f.c === st.cat) && (!st.cheap || (f.p !== null && f.p <= 8000)) && isShown('food', f) && has(f, q));
   const up = f => (SUM[keyOf('food', f)] || {}).up || 0;
-  rows.sort(st.sort === 'price' ? (a, b) => (a.p ?? 1e9) - (b.p ?? 1e9) || b.r - a.r : st.sort === 'vote' ? (a, b) => up(b) - up(a) || b.r - a.r : (a, b) => b.r - a.r);
-  const cards = rows.map(f => `<article data-card class="card">
+  rows.sort(st.sort === 'price' ? (a, b) => (a.p ?? 1e9) - (b.p ?? 1e9) || b.r - a.r : st.sort === 'vote' ? (a, b) => up(b) - up(a) || b.r - a.r
+    : st.sort === 'near' ? (a, b) => (fromCampus(a) ?? 1e9) - (fromCampus(b) ?? 1e9) : (a, b) => b.r - a.r);
+  const cards = rows.map(f => `<article data-card data-key="${esc(keyOf('food', f))}" class="card">
       <div class="top"><h2>${esc(f.n)}</h2><span class="rec">학생 추천 ${f.r}</span></div>
       <div class="meta"><span class="tag">${esc(f.c)}</span>${f.m ? `<span>${esc(f.m)}</span>` : ''}
-        ${f.p !== null ? `<span class="price">${won(f.p)}~</span>` : '<span class="unk">가격 확인 안 됨</span>'}</div>
-      ${f.l ? `<div class="addr">${esc(f.l)}</div>` : ''}${mapLink(f.u)}${vbar(keyOf('food', f))}</article>`);
-  const cta = `<button type="button" class="pick-cta" data-pick><span class="pick-q">뭐 먹을지 모르겠다면?</span><span class="pick-btn">골라줘 →</span></button>`;
+        ${f.p !== null ? `<span class="price">${won(f.p)}~</span>` : '<span class="unk">가격 확인 안 됨</span>'}${walkTag(f)}</div>
+      ${f.l ? `<div class="addr">${esc(f.l)}</div>` : ''}${acts('food', f)}${vbar(keyOf('food', f))}</article>`);
   const title = st.cat ? st.cat : '전체 맛집';
-  return cta + tiles + filters + (st.view === 'map' ? mapBlock('food', rows, title) : list(rows.length, cards, title, true));
+  return ctas(true) + tiles + filters + (st.view === 'map' ? mapBlock('food', rows, title) : list(rows.length, cards, title, true));
 }
+// 맨 위 버튼: 뭐 먹지? 골라줘 / 공강 코스 짜 주기
+const ctas = withPick => `<div class="cta-row${withPick ? '' : ' one'}">${withPick ? `<button type="button" class="pick-cta" data-pick><span class="pick-q">뭐 먹을지 모르겠다면?</span><span class="pick-btn">골라줘 →</span></button>` : ''}
+  <button type="button" class="pick-cta course-cta" data-course><span class="pick-q">공강엔 뭐 하지?</span><span class="pick-btn">코스 짜 줘 →</span></button></div>`;
 
 // 용도별 그림 표지 (360x128). 색은 .art[data-u] 의 CSS 변수에서 가져옴
 const ART = {
@@ -126,25 +171,30 @@ const roadview = s => {
 };
 
 function spotView(q) {
-  const filters = `<div class="filters">${chips('권역', 'area', uniq(D.spot, 'a'))}</div><div class="filters">${chips('용도', 'use', uniq(D.spot, 'g'))}</div>`;
-  const rows = D.spot.filter(s => (!st.area || s.a === st.area) && (!st.use || s.g === st.use) && has(s, q)).sort((a, b) => b.r - a.r);
-  const cards = rows.map(s => `<article data-card class="card spot">${cover(s)}<div class="body">
+  const filters = `<div class="filters">${chips('권역', 'area', uniq(D.spot, 'a'))}</div><div class="filters">${chips('용도', 'use', uniq(D.spot, 'g'))}</div>
+    <div class="filters">${favChip('spot')}<label class="sort"><span class="lbl">정렬</span> <select id="spotSort">
+      <option value="rec"${st.spotSort === 'rec' ? ' selected' : ''}>학생 추천순</option>
+      <option value="near"${st.spotSort === 'near' ? ' selected' : ''}>가까운 순</option></select></label></div>`;
+  const rows = D.spot.filter(s => (!st.area || s.a === st.area) && (!st.use || s.g === st.use) && isShown('spot', s) && has(s, q))
+    .sort(st.spotSort === 'near' ? (a, b) => (fromCampus(a) ?? 1e9) - (fromCampus(b) ?? 1e9) : (a, b) => b.r - a.r);
+  const cards = rows.map(s => `<article data-card data-key="${esc(keyOf('spot', s))}" class="card spot">${cover(s)}<div class="body">
       <div class="top"><h2>${esc(s.n)}</h2><span class="rec">학생 추천 ${s.r}</span></div>
-      <div class="meta"><span class="tag">${esc(s.g)}</span><span class="tag">${esc(s.a)}</span></div>
+      <div class="meta"><span class="tag">${esc(s.g)}</span><span class="tag">${esc(s.a)}</span>${walkTag(s)}</div>
       <dl class="rows"><dt>이용 시간</dt><dd>${s.h ? esc(s.h) : unk}</dd><dt>이용 조건</dt><dd>${s.k ? esc(s.k) : unk}</dd></dl>
-      ${s.l ? `<div class="addr">${esc(s.l)}</div>` : ''}<div class="links">${mapLink(s.u)}${roadview(s)}</div>${vbar(keyOf('spot', s))}</div></article>`);
-  return filters + (st.view === 'map' ? mapBlock('spot', rows, '숨은장소') : list(rows.length, cards, '숨은장소', true));
+      ${s.l ? `<div class="addr">${esc(s.l)}</div>` : ''}${acts('spot', s, roadview(s))}${vbar(keyOf('spot', s))}</div></article>`);
+  return ctas(false) + filters + (st.view === 'map' ? mapBlock('spot', rows, '숨은장소') : list(rows.length, cards, '숨은장소', true));
 }
 
 function tipView(q, src, title) {
-  const filters = `<div class="filters">${chips('주제', 'topic', uniq(src, 't'))}</div>`;
-  const rows = src.filter(t => (!st.topic || t.t === st.topic) && has(t, q)).sort((a, b) => b.r - a.r);
-  const cards = rows.map(t => `<article data-card class="card">
+  const tab = st.tab;
+  const filters = `<div class="filters">${chips('주제', 'topic', uniq(src, 't'))}</div><div class="filters">${favChip(tab)}</div>`;
+  const rows = src.filter(t => (!st.topic || t.t === st.topic) && isShown(tab, t) && has(t, q)).sort((a, b) => b.r - a.r);
+  const cards = rows.map(t => `<article data-card data-key="${esc(keyOf(tab, t))}" class="card">
       <div class="top"><h2>${esc(t.n)}</h2><span class="rec">학생 추천 ${t.r}</span></div>
       <div class="meta"><span class="tag">${esc(t.t)}</span></div>
       <p class="gist">${esc(t.g)}</p>
       <dl class="rows"><dt>필요한 것</dt><dd>${t.q ? esc(t.q) : unk}</dd><dt>언제</dt><dd>${t.w ? esc(t.w) : unk}</dd></dl>
-      ${t.l ? `<div class="addr">${esc(t.l)}</div>` : ''}${mapLink(t.u)}${vbar(keyOf(st.tab, t))}</article>`);
+      ${t.l ? `<div class="addr">${esc(t.l)}</div>` : ''}${acts(tab, t)}${vbar(keyOf(tab, t))}</article>`);
   return filters + list(rows.length, cards, title);
 }
 
@@ -156,7 +206,7 @@ const countRow = (title, n, sw) => `<div class="count-row"><p class="count"><b>$
 
 function list(n, cards, title, sw) {
   return countRow(title, n, sw) +
-    (n ? `<div class="list">${cards.join('')}</div>` : `<p class="empty">조건에 맞는 결과가 없어요. 필터를 하나 풀어 보세요.</p>`);
+    (n ? `<div class="list">${cards.join('')}</div>` : st.favOnly ? `<p class="empty">찜한 곳이 없어요. 카드의 ♡를 눌러 담아 보세요.</p>` : `<p class="empty">조건에 맞는 결과가 없어요. 필터를 하나 풀어 보세요.</p>`);
 }
 
 // ---- 지도로 보기: 지금 필터에 맞는 곳을 지도 핀으로 (좌표는 학생들이 올린 네이버 지도 링크에서 뽑음) ----
@@ -168,7 +218,7 @@ function mapBlock(tab, rows, title) {
   MAP.tab = tab; MAP.rows = rows;
   const off = rows.filter(x => !COORDS[x.n]);
   const offList = off.length ? `<details class="map-off"><summary>지도에 위치가 없는 곳 ${off.length}곳</summary><div class="map-off-list">${off.map(x =>
-    `<button type="button" class="chip" data-open="${esc(keyOf(tab, x))}"${STATIC ? ' disabled' : ''}>${esc(x.n)}</button>`).join('')}</div></details>` : '';
+    `<button type="button" class="chip" data-open="${esc(keyOf(tab, x))}">${esc(x.n)}</button>`).join('')}</div></details>` : '';
   return countRow(title, rows.length, true) + (rows.length
     ? `<div class="map-wrap"><div class="map-zoom" role="group" aria-label="지도 범위"><button type="button" data-zoom="near" aria-pressed="true">학교 앞</button><button type="button" data-zoom="all" aria-pressed="false">충주 전체</button></div><div id="map" class="map-box" role="region" aria-label="${esc(title)} 지도"><p class="map-msg">지도를 불러오는 중…</p></div></div>${offList}`
     : `<p class="empty">조건에 맞는 결과가 없어요. 필터를 하나 풀어 보세요.</p>`);
@@ -179,7 +229,6 @@ const loadLeaflet = () => leafletReady || (leafletReady = new Promise((ok, no) =
   const js = document.createElement('script'); js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
   js.onload = () => ok(window.L); js.onerror = () => { leafletReady = null; no(new Error('leaflet')); }; document.head.append(js);
 }));
-const CAMPUS = [36.9688, 127.8702]; // 교통대 충주캠퍼스 (중앙도서관 근처)
 async function mountMap() {
   const box = document.getElementById('map'); if (!box) return;
   let L; try { L = await loadLeaflet(); } catch (e) { box.innerHTML = '<p class="map-msg">지도를 불러오지 못했어요. 지도는 인터넷이 연결되어 있어야 보여요.</p>'; return; }
@@ -195,10 +244,10 @@ async function mountMap() {
     pts.push(c);
     const key = keyOf(MAP.tab, x);
     const meta = MAP.tab === 'food'
-      ? [x.c, x.m, x.p !== null ? won(x.p) + '~' : ''].filter(Boolean).join(' · ')
-      : [x.g, x.a, x.h].filter(Boolean).join(' · ');
+      ? [x.c, x.m, x.p !== null ? won(x.p) + '~' : '', walkTxt(x)].filter(Boolean).join(' · ')
+      : [x.g, x.a, x.h, walkTxt(x)].filter(Boolean).join(' · ');
     const pop = `<div class="pop"><b>${esc(x.n)}</b><span class="pop-meta">${esc(meta)}</span><span class="pop-rec">학생 추천 ${x.r}</span>
-      <div class="pop-act">${STATIC ? '' : `<button type="button" data-open="${esc(key)}">리뷰·추천 →</button>`}${x.u ? `<a href="${esc(x.u)}" target="_blank" rel="noopener">네이버 지도 →</a>` : ''}</div></div>`;
+      <div class="pop-act"><button type="button" data-open="${esc(key)}">${STATIC ? '자세히 →' : '리뷰·추천 →'}</button>${x.u ? `<a href="${esc(x.u)}" target="_blank" rel="noopener">네이버 지도 →</a>` : ''}</div></div>`;
     L.marker(c, { icon: L.divIcon({ className: 'pin', html: `<span>${pinIcon(MAP.tab, x)}</span>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] }), title: x.n, alt: x.n })
       .bindPopup(pop, { maxWidth: 260 }).addTo(map);
   }
@@ -217,11 +266,67 @@ async function mountMap() {
   box.addEventListener('click', () => map.scrollWheelZoom.enable(), { once: true });
 }
 
+// ---- 홈: 인기 TOP + 게시판 4개 (KNUT 타임 형식). 검색어가 있으면 네 분류를 한꺼번에 찾아 보여 줌 ----
+const BOARD = {
+  food: { label: '맛집', ic: 'ph-fork-knife', cls: 'b-food' },
+  spot: { label: '숨은장소', ic: 'ph-tree', cls: 'b-spot' },
+  tip: { label: '생활꿀팁', ic: 'ph-lightbulb', cls: 'b-tip' },
+  free: { label: '자유', ic: 'ph-chat-circle-dots', cls: 'b-free' },
+};
+const ALL = ['food', 'spot', 'tip', 'free'];
+const score = (tab, x) => x.r * 2 + ((SUM[keyOf(tab, x)] || {}).up || 0);
+const subOf = (tab, x) => tab === 'food' ? [x.c.slice(x.c.indexOf(' ') + 1), x.m, x.p !== null ? won(x.p) + '~' : ''].filter(Boolean).join(' · ')
+  : tab === 'spot' ? [x.g, x.a, walkTxt(x)].filter(Boolean).join(' · ') : x.g;
+const rowRight = (tab, x) => tab === 'food' && x.p !== null ? `<span class="br-price">${won(x.p)}</span>`
+  : `<span class="br-heart"><i class="ph-fill ph-heart" aria-hidden="true"></i> ${x.r}</span>`;
+const boardRow = (tab, x) => `<li><button type="button" class="br" data-jump="${esc(keyOf(tab, x))}"><span class="br-name">${esc(x.n)}</span>${rowRight(tab, x)}</button></li>`;
+function hotCard(tab, x) {
+  const v = SUM[keyOf(tab, x)] || {};
+  return `<button type="button" class="hot" data-jump="${esc(keyOf(tab, x))}">
+    <b class="hot-t">${esc(x.n)}</b><span class="hot-s">${esc(subOf(tab, x))}</span>
+    <span class="hot-m"><span class="hm-heart"><i class="ph-fill ph-heart" aria-hidden="true"></i> ${x.r}</span>${STATIC ? '' : `<span class="hm-chat"><i class="ph-fill ph-chat-circle" aria-hidden="true"></i> ${v.n || 0}</span>`}<span class="hm-board">${BOARD[tab].label}</span></span></button>`;
+}
+function homeView(q) {
+  if (q) {
+    const hits = ALL.map(tab => ({ tab, rows: D[tab].filter(x => has(x, q)).sort((a, b) => b.r - a.r) }));
+    const total = hits.reduce((a, h) => a + h.rows.length, 0);
+    return `<p class="count"><b>"${esc(st.q.trim())}" 검색 결과</b> · ${total}개</p>` + (total ? `<div class="boards">${hits.filter(h => h.rows.length).map(h => board(h.tab, h.rows.slice(0, 8), h.rows.length)).join('')}</div>`
+      : '<p class="empty">찾는 내용이 없어요. 다른 낱말로 찾아 보세요.</p>');
+  }
+  const hot = ALL.flatMap(tab => D[tab].map(x => ({ tab, x }))).sort((a, b) => score(b.tab, b.x) - score(a.tab, a.x)).slice(0, 4);
+  return `<section class="panel"><div class="panel-h"><h2><i class="ph-fill ph-fire" aria-hidden="true"></i> 인기 TOP</h2><span class="panel-sub">학생 추천이 많은 곳</span></div>
+    <div class="hot-grid">${hot.map(o => hotCard(o.tab, o.x)).join('')}</div></section>
+    <div class="boards">${ALL.map(tab => board(tab, D[tab].slice().sort((a, b) => score(tab, b) - score(tab, a)).slice(0, 5), D[tab].length)).join('')}</div>`;
+}
+function board(tab, rows, n) {
+  const b = BOARD[tab];
+  return `<section class="panel board ${b.cls}"><div class="panel-h"><h2><i class="ph-fill ${b.ic}" aria-hidden="true"></i> ${b.label}</h2>
+    <button type="button" class="more" data-more="${tab}">${n}개 더보기 ›</button></div><ul class="br-list">${rows.map(x => boardRow(tab, x)).join('')}</ul></section>`;
+}
+// 홈 배너: 오늘의 추천 한 곳 (날짜마다 바뀜)
+function paintBanner() {
+  const el = document.getElementById('banner');
+  el.hidden = st.tab !== 'home' || !!st.q.trim();
+  if (el.hidden || el.dataset.ready) return;
+  const pool = D.food.filter(f => f.r >= 2 && !/카페|술집/.test(f.c));
+  const d = new Date(), x = pool[(d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate()) % pool.length];
+  el.innerHTML = `<div class="banner-in"><span class="banner-tag">오늘의 추천</span>
+    <h2>오늘 점심은 <em>${esc(x.n)}</em> 어때요?</h2>
+    <p>${esc(subOf('food', x))}${walkTxt(x) ? ' · ' + walkTxt(x) : ''} · 학생 추천 ${x.r}</p>
+    <div class="banner-btns"><button type="button" class="banner-go" data-jump="${esc(keyOf('food', x))}">자세히 보기</button><button type="button" class="banner-ghost" data-pick>다른 곳 골라줘</button></div></div>
+    <i class="ph-fill ph-bowl-food banner-art" aria-hidden="true"></i>`;
+  el.dataset.ready = '1';
+}
+// 홈의 줄·카드를 누르면 자세히(리뷰) 창
+const jumpTo = (key, from) => openReview(key, from);
+
 function render() {
   renderTabs();
   const q = st.q.trim().toLowerCase();
-  const v = st.tab === 'food' ? foodView(q) : st.tab === 'spot' ? spotView(q) : st.tab === 'tip' ? tipView(q, D.tip, '생활꿀팁')
+  const v = st.tab === 'home' ? homeView(q) : st.tab === 'food' ? foodView(q) : st.tab === 'spot' ? spotView(q) : st.tab === 'tip' ? tipView(q, D.tip, '생활꿀팁')
     : tipView(q, D.free, '자유');
+  document.getElementById('layout').classList.toggle('home', st.tab === 'home');
+  paintBanner();
   if (MAP.map) { MAP.map.remove(); MAP.map = null; }
   if (location.hash.slice(1) !== st.tab) try { history.replaceState(null, '', '#' + st.tab); } catch (e) {}
   document.getElementById('view').innerHTML = v;
@@ -231,22 +336,54 @@ function render() {
 document.getElementById('tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-tab]'); if (!b) return;
   st.tab = b.dataset.tab; st.topic = '';
-  try { localStorage.setItem('kd-tab', JSON.stringify(st.tab)); } catch (err) {}
   render(); window.scrollTo({ top: 0 });
 });
 document.getElementById('view').addEventListener('click', e => {
   const t = e.target.closest('[data-cat]'); if (t) { st.cat = st.cat === t.dataset.cat ? '' : t.dataset.cat; return render(); }
   const g = e.target.closest('[data-toggle]'); if (g) { st[g.dataset.toggle] = !st[g.dataset.toggle]; return render(); }
   const c = e.target.closest('[data-k]'); if (c) { st[c.dataset.k] = c.dataset.v; return render(); }
+  const fv = e.target.closest('[data-fav]'); if (fv) return toggleFav(fv.dataset.fav);
+  const sh = e.target.closest('[data-share]'); if (sh) return shareItem(sh.dataset.share);
   const pk = e.target.closest('[data-pick]'); if (pk) return openPick(pk);
+  const cs = e.target.closest('[data-course]'); if (cs) return openCourse(cs);
   const vw = e.target.closest('[data-view]'); if (vw) { st.view = vw.dataset.view; return render(); }
+  const mo = e.target.closest('[data-more]'); if (mo) return goTab(mo.dataset.more);
+  const jp = e.target.closest('[data-jump]'); if (jp) return jumpTo(jp.dataset.jump, jp);
   if (e.target.closest('a')) return; // 지도·로드뷰 링크는 그대로
   const o = e.target.closest('[data-open]') || e.target.closest('[data-card]')?.querySelector('[data-open]');
-  if (o) openReview(o.dataset.open, o);
+  if (o) return openReview(o.dataset.open, o);
+  const card = e.target.closest('[data-card]'); if (card && card.dataset.key) openReview(card.dataset.key, card);
+});
+function goTab(tab, set = {}) {
+  st.tab = tab; st.topic = ''; st.view = 'list'; st.q = ''; $id('q').value = '';
+  Object.assign(st, set); render(); window.scrollTo({ top: 0 });
+}
+document.getElementById('banner').addEventListener('click', e => {
+  const jp = e.target.closest('[data-jump]'); if (jp) return jumpTo(jp.dataset.jump, jp);
+  const pk = e.target.closest('[data-pick]'); if (pk) openPick(pk);
+});
+// 왼쪽 위젯: 골라줘 · 공강 코스 · 바로가기
+document.getElementById('side').addEventListener('click', e => {
+  const pk = e.target.closest('[data-pick]'); if (pk) return openPick(pk);
+  const cs = e.target.closest('[data-course]'); if (cs) return openCourse(cs);
+  const sc = e.target.closest('[data-sc]'); if (!sc) return;
+  ({ map: () => goTab('food', { view: 'map' }), cheap: () => goTab('food', { cheap: true, cat: '' }),
+     study: () => goTab('spot', { use: '공부', area: '' }), bus: () => goTab('tip', { topic: '교통' }) })[sc.dataset.sc]();
+});
+// 위쪽 돋보기: 검색창 열고 닫기 (검색어가 있으면 열린 채로)
+const openSearch = () => { $id('searchBar').hidden = false; $id('searchToggle').setAttribute('aria-expanded', 'true'); };
+document.getElementById('searchToggle').addEventListener('click', () => {
+  const bar = $id('searchBar');
+  if (bar.hidden) { openSearch(); $id('q').focus(); return; }
+  if (!st.q.trim()) { bar.hidden = true; $id('searchToggle').setAttribute('aria-expanded', 'false'); }
+  else $id('q').focus();
 });
 // 주소 끝 #food, #spot 등으로 바로 그 탭 열기
-window.addEventListener('hashchange', () => { const t = location.hash.slice(1); if (TABS.some(x => x.id === t) && t !== st.tab) { st.tab = t; st.topic = ''; render(); } });
-document.getElementById('view').addEventListener('change', e => { if (e.target.id === 'sort') { st.sort = e.target.value; render(); } });
+window.addEventListener('hashchange', () => {
+  const d = parseDeep(); if (d) { st.tab = d.tab; st.topic = ''; st.view = 'list'; render(); return focusCard(keyOf(d.tab, d)); }
+  const t = location.hash.slice(1); if (TABS.some(x => x.id === t) && t !== st.tab) { st.tab = t; st.topic = ''; render(); }
+});
+document.getElementById('view').addEventListener('change', e => { if (e.target.id === 'sort') { st.sort = e.target.value; render(); } if (e.target.id === 'spotSort') { st.spotSort = e.target.value; render(); } });
 document.getElementById('q').addEventListener('input', e => { st.q = e.target.value; render(); });
 // ---- 리뷰·추천/비추천 창 ----
 const RV = { key: null, from: null };
@@ -295,6 +432,34 @@ async function loadReview() {
     paintVotes(v); paintComments(v.comments || []); syncSummary(v);
   } catch (e) { $id('rvNote').textContent = '리뷰를 불러오지 못했어요. "실행하기.bat"으로 열었는지 확인해 주세요.'; }
 }
+// 리뷰 창 위쪽 정보 카드: 데이터에 있는 가격·메뉴·시간·주소 등 (없는 칸은 '확인 안 됨')
+const infoRow = (label, val) => `<div class="ri-row"><dt>${label}</dt><dd>${val}</dd></div>`;
+function paintInfo(tab, x) {
+  const v = s => s ? esc(s) : unk, rows = [];
+  if (tab === 'food') rows.push(infoRow('1인 가격', x.p !== null ? `<b class="ri-big">${won(x.p)}~</b>` : unk), infoRow('대표 메뉴', v(x.m)));
+  else if (tab === 'spot') rows.push(infoRow('이용 시간', v(x.h)), infoRow('이용 조건', v(x.k)), infoRow('권역', v(x.a)));
+  else rows.push(`<p class="ri-gist">${esc(x.g)}</p>`, infoRow('필요한 것', v(x.q)), infoRow('언제', v(x.w)));
+  const d = fromCampus(x);
+  if (d !== null) rows.push(infoRow('학교에서', walkMin(d) <= 30 ? `🚶 걸어서 약 ${walkMin(d)}분` : `🚌 약 ${(d / 1000).toFixed(1)}km (걷기엔 멀어요)`));
+  if (x.l) rows.push(infoRow('위치', esc(x.l)));
+  const c = COORDS[x.n];
+  const links = (x.u ? `<a href="${esc(x.u)}" target="_blank" rel="noopener">네이버 지도 →</a>` : '')
+    + (c ? `<a href="https://map.kakao.com/link/roadview/${c[0]},${c[1]}" target="_blank" rel="noopener">로드뷰 →</a>` : '');
+  $id('rvInfo').innerHTML = `<dl class="ri">${rows.join('')}</dl>${links ? `<div class="ri-links">${links}</div>` : ''}`;
+  // 걸어서 가까운 곳: 이 장소에서 10분 안의 맛집·숨은장소 3곳 (같은 건물은 뺌)
+  const box = $id('rvNear');
+  const near = c ? ['food', 'spot'].flatMap(t => D[t].map(y => ({ t, y }))).filter(o => o.y.n !== x.n && COORDS[o.y.n])
+    .map(o => ({ ...o, d: distM(c, COORDS[o.y.n]) })).filter(o => o.d > 15 && walkMin(o.d) <= 10)
+    .sort((a, b) => a.d - b.d || b.y.r - a.y.r).slice(0, 3) : [];
+  box.hidden = !near.length;
+  box.innerHTML = near.length ? `<h3 class="rv-h">걸어서 가까운 곳</h3><div class="rn-list">${near.map(o => `<button type="button" class="rn" data-near="${esc(keyOf(o.t, o.y))}">
+      <span class="rn-ic" aria-hidden="true">${pinIcon(o.t, o.y)}</span><span class="rn-txt"><b>${esc(o.y.n)}</b><small>${esc(o.t === 'food' ? [o.y.m, o.y.p !== null ? won(o.y.p) + '~' : ''].filter(Boolean).join(' · ') : o.y.g)}</small></span>
+      <span class="rn-m">🚶 ${walkMin(o.d)}분</span></button>`).join('')}</div>` : '';
+}
+$id('rvNear').addEventListener('click', e => {
+  const b = e.target.closest('[data-near]'); if (!b) return;
+  openReview(b.dataset.near, RV.from); $id('rv').querySelector('.rv').scrollTop = 0;
+});
 function openReview(key, from) {
   const { tab, x } = itemOf(key); if (!x) return;
   RV.key = key; RV.from = from;
@@ -302,10 +467,11 @@ function openReview(key, from) {
   $id('rvTag').textContent = ({ food: x.c, spot: x.g, tip: x.t, free: x.t })[tab] || '';
   $id('rvRec').textContent = `학생 추천 ${x.r}`;
   $id('rvNote').textContent = '';
+  paintInfo(tab, x); paintRvFav();
   paintVotes({ up: 0, down: 0, my: null, ...(SUM[key] || {}) }); paintComments([]);
   $id('rv').hidden = false; document.body.style.overflow = 'hidden';
   $id('rvClose').focus();
-  loadReview();
+  if (!STATIC) loadReview();
 }
 function closeReview() {
   $id('rv').hidden = true; document.body.style.overflow = ''; RV.key = null;
@@ -407,7 +573,7 @@ function showResult(f) {
   box.innerHTML = `<div class="meta">${f.p !== null ? `<span class="price">${won(f.p)}~</span>` : '<span class="unk">가격 확인 안 됨</span>'}
       <span class="tag">학생 추천 ${f.r}</span>${STATIC ? '' : `<span class="tag">추천 ${v.up} · 비추천 ${v.down}</span>`}</div>
     ${f.l ? `<div class="addr">${esc(f.l)}</div>` : ''}
-    <div class="pick-actions">${STATIC ? '' : `<button type="button" class="chip" data-pickrv="${esc(keyOf('food', f))}">리뷰 ${v.n}개 보기</button>`}${f.u ? `<a class="chip" href="${esc(f.u)}" target="_blank" rel="noopener">지도 보기 →</a>` : ''}</div>`;
+    <div class="pick-actions"><button type="button" class="chip" data-pickrv="${esc(keyOf('food', f))}">${STATIC ? '자세히 보기' : `리뷰 ${v.n}개 보기`}</button>${f.u ? `<a class="chip" href="${esc(f.u)}" target="_blank" rel="noopener">지도 보기 →</a>` : ''}</div>`;
   box.hidden = false;
 }
 function spin() {
@@ -467,9 +633,8 @@ $id('tipBar').addEventListener('animationend', nextTip);
 $id('tipNext').addEventListener('click', nextTip);
 $id('tipMore').addEventListener('click', () => {
   if (!tipCur) return;
-  st.tab = tipCur.tab; st.topic = ''; st.q = tipCur.src; $id('q').value = tipCur.src;
-  render();
-  $id('tabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  st.tab = tipCur.tab; st.topic = ''; st.q = tipCur.src; $id('q').value = tipCur.src; openSearch();
+  render(); window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 nextTip();
 
@@ -592,7 +757,141 @@ if (!STATIC) {
   $id('aiForm').addEventListener('submit', e => { e.preventDefault(); if (AI.ctrl) { AI.ctrl.abort(); return; } ask(); });
 }
 
+// ---- 찜하기 · 공유하기 ----
+// 카드의 ♡ 와 리뷰 창의 '찜하기'가 같은 찜을 바꿈
+function toggleFav(key) {
+  const tab = key.slice(0, key.indexOf(':'));
+  if (FAV.has(key)) FAV.delete(key); else FAV.add(key);
+  saveFav();
+  const on = FAV.has(key);
+  if (st.favOnly) render();
+  else {
+    document.querySelectorAll('[data-fav]').forEach(b => { if (b.dataset.fav === key) { b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '♥' : '♡'; } });
+    document.querySelectorAll('[data-favn]').forEach(el => { el.textContent = favCount(tab); });
+  }
+  paintRvFav();
+  toast(on ? '찜했어요 ♥' : '찜을 풀었어요');
+}
+function paintRvFav() {
+  if (!RV.key) return;
+  const on = FAV.has(RV.key), b = $id('rvFav');
+  b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '♥ 찜했어요' : '♡ 찜하기';
+}
+$id('rvFav').addEventListener('click', () => { if (RV.key) toggleFav(RV.key); });
+$id('rvShare').addEventListener('click', () => { if (RV.key) shareItem(RV.key); });
+// 공유 링크는 누구나 열 수 있는 GitHub 주소(보기 전용판)로 만듦. #탭/이름 으로 그 카드가 바로 열림
+const SITE = 'https://jeonghossi.github.io/gyotongdae-eodi-galkka/';
+async function shareItem(key) {
+  const { tab, x } = itemOf(key); if (!x) return;
+  const url = (STATIC ? location.origin + location.pathname : SITE) + '#' + tab + '/' + encodeURIComponent(x.n);
+  const title = `${x.n} — 교통대 어디 갈까`;
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) {   // 폰: 카톡 등 공유 창
+    try { await navigator.share({ title, url }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast('링크를 복사했어요. 카톡 등에 붙여 넣으세요'); }
+  catch (e) { window.prompt('이 링크를 복사해서 보내세요', url); }
+}
+function focusCard(key) {
+  const el = [...document.querySelectorAll('[data-key]')].find(c => c.dataset.key === key); if (!el) return;
+  el.scrollIntoView({ block: 'center' }); el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 2400);
+}
+let toastTimer = 0;
+function toast(msg) {
+  const t = $id('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
+}
+
+// ---- 공강 코스 짜 주기: 학교 → 밥 → 카페 → 산책·쉼 → 학교 ----
+// 다음 장소는 '지금 있는 곳에서 가까울수록, 학생 추천이 많을수록' 잘 뽑힘. 좌표가 있는 곳만 씀
+const CO = { opts: { meal: true, cafe: true, walk: true, near: true }, from: null, map: null };
+const STEP = {
+  meal: { ic: '🍚', label: '밥', stay: 40 },
+  cafe: { ic: '☕', label: '카페', stay: 40 },
+  walk: { ic: '🌳', label: '산책·쉼', stay: 30 },
+};
+const POOL = {
+  meal: D.food.filter(f => COORDS[f.n] && isMeal(f)).map(x => ({ tab: 'food', x })),
+  cafe: D.food.filter(f => COORDS[f.n] && /카페/.test(f.c)).map(x => ({ tab: 'food', x })),
+  walk: D.spot.filter(s => COORDS[s.n] && (['산책·운동', '경치·사진', '놀거리'].includes(s.g) || /벤치|쉼터|노천|잔디/.test(s.n)) && !/예약|유료|입주생/.test(s.k))
+    .map(x => ({ tab: 'spot', x })),
+};
+function buildCourse() {
+  let at = CAMPUS; const steps = [];
+  for (const k of ['meal', 'cafe', 'walk']) {
+    if (!CO.opts[k]) continue;
+    const pool = POOL[k].filter(p => !CO.opts.near || walkMin(fromCampus(p.x)) <= 15);
+    if (!pool.length) continue;
+    const w = p => (1 + p.x.r) / (1 + walkMin(distM(at, COORDS[p.x.n])) / 6) ** 1.5;
+    let r = Math.random() * pool.reduce((a, p) => a + w(p), 0), pick = pool[pool.length - 1];
+    for (const p of pool) { r -= w(p); if (r <= 0) { pick = p; break; } }
+    const c = COORDS[pick.x.n];
+    steps.push({ k, ...pick, walk: walkMin(distM(at, c)) }); at = c;
+  }
+  return { steps, back: steps.length ? walkMin(distM(at, CAMPUS)) : 0 };
+}
+const hm = m => (m >= 60 ? Math.floor(m / 60) + '시간 ' : '') + (m % 60 ? (m % 60) + '분' : '');
+function paintCourseOpts() {
+  document.querySelectorAll('#courseOpts [data-copt]').forEach(b => b.setAttribute('aria-pressed', String(CO.opts[b.dataset.copt])));
+}
+async function drawCourse() {
+  paintCourseOpts();
+  const box = $id('courseSteps'), sum = $id('courseSum');
+  if (!['meal', 'cafe', 'walk'].some(k => CO.opts[k])) { box.innerHTML = ''; sum.textContent = '밥 · 카페 · 산책 중 하나 이상 골라 주세요.'; $id('courseMap').hidden = true; return; }
+  const { steps, back } = buildCourse();
+  const walkAll = steps.reduce((a, s) => a + s.walk, 0) + back, total = walkAll + steps.reduce((a, s) => a + STEP[s.k].stay, 0);
+  sum.innerHTML = `총 약 <b>${hm(total)}</b> · 걷기 ${walkAll}분 <span class="unk">(머무는 시간은 밥·카페 40분, 산책 30분으로 어림)</span>`;
+  box.innerHTML = steps.map((s, i) => {
+    const x = s.x, meta = s.tab === 'food' ? [x.m, x.p !== null ? won(x.p) + '~' : ''].filter(Boolean).join(' · ') : [x.g, x.h].filter(Boolean).join(' · ');
+    return `<li class="cs-leg">🚶 ${i ? '앞 장소에서' : '학교에서'} ${s.walk}분</li>
+      <li class="cs-step"><span class="cs-no">${i + 1}</span><div class="cs-body"><span class="cs-kind">${STEP[s.k].ic} ${STEP[s.k].label}</span>
+        <b>${esc(x.n)}</b><span class="cs-meta">${esc(meta)}${meta ? ' · ' : ''}학생 추천 ${x.r}</span>
+        <span class="cs-act"><button type="button" data-copen="${esc(keyOf(s.tab, x))}">${STATIC ? '자세히 →' : '리뷰 →'}</button>${x.u ? `<a href="${esc(x.u)}" target="_blank" rel="noopener">네이버 지도 →</a>` : ''}</span></div></li>`;
+  }).join('') + (steps.length ? `<li class="cs-leg">🚶 학교로 돌아오기 ${back}분</li>` : '');
+  // 작은 지도: 학교 → 1 → 2 → 3 → 학교 를 선으로
+  const mb = $id('courseMap'); mb.hidden = !steps.length;
+  let L; try { L = await loadLeaflet(); } catch (e) { mb.hidden = true; return; }
+  if ($id('course').hidden) return;
+  if (CO.map) { CO.map.remove(); CO.map = null; }
+  const map = CO.map = L.map(mb, { scrollWheelZoom: false, attributionControl: true });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+  const pts = [CAMPUS, ...steps.map(s => COORDS[s.x.n]), CAMPUS];
+  L.polyline(pts, { color: '#D9480F', weight: 4, opacity: .8, dashArray: '6 8' }).addTo(map);
+  L.marker(CAMPUS, { icon: L.divIcon({ className: 'pin-campus', html: '<span>🏫 교통대</span>', iconSize: null }), interactive: false, keyboard: false }).addTo(map);
+  steps.forEach((s, i) => L.marker(COORDS[s.x.n], { icon: L.divIcon({ className: 'pin num', html: `<span>${i + 1}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }), title: s.x.n, keyboard: false }).addTo(map));
+  map.fitBounds(L.latLngBounds(pts), { padding: [28, 28], maxZoom: 17 });
+}
+function openCourse(from) {
+  CO.from = from;
+  $id('course').hidden = false; document.body.style.overflow = 'hidden';
+  $id('courseGo').focus(); drawCourse();
+}
+function closeCourse() {
+  if (CO.map) { CO.map.remove(); CO.map = null; }
+  $id('course').hidden = true; document.body.style.overflow = '';
+  if (CO.from && document.contains(CO.from)) CO.from.focus();
+}
+$id('courseGo').addEventListener('click', drawCourse);
+$id('courseClose').addEventListener('click', closeCourse);
+$id('course').addEventListener('click', e => {
+  if (e.target === $id('course')) return closeCourse();
+  const o = e.target.closest('[data-copt]'); if (o) { CO.opts[o.dataset.copt] = !CO.opts[o.dataset.copt]; return drawCourse(); }
+  const r = e.target.closest('[data-copen]'); if (r) { const from = CO.from; closeCourse(); openReview(r.dataset.copen, from); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$id('course').hidden) closeCourse(); });
+
+// ---- 폰으로 보기 (QR): 발표 화면에 띄워 두면 청중이 바로 접속 ----
+$id('qrOpen').addEventListener('click', e => { $id('qr').hidden = false; document.body.style.overflow = 'hidden'; $id('qrClose').focus(); $id('qr')._from = e.currentTarget; });
+const closeQr = () => { $id('qr').hidden = true; document.body.style.overflow = ''; if ($id('qr')._from) $id('qr')._from.focus(); };
+$id('qrClose').addEventListener('click', closeQr);
+$id('qr').addEventListener('click', e => { if (e.target === $id('qr')) closeQr(); });
+$id('qrCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(SITE); toast('주소를 복사했어요'); } catch (e) { window.prompt('이 주소를 복사하세요', SITE); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$id('qr').hidden) closeQr(); });
+
 render();
+if (DEEP) focusCard(keyOf(DEEP.tab, DEEP));
 })();
 
 // ---- 실시간 수다: 내 PC 서버(server.js)를 거쳐 접속한 사람끼리 주고받고, 20초 뒤 사라짐 (저장 안 함) ----
