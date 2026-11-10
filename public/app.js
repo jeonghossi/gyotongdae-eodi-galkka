@@ -4,6 +4,20 @@
 window.KD_STATIC = location.protocol === 'file:' || /.github.io$/.test(location.hostname);
 document.documentElement.classList.toggle('static', window.KD_STATIC);
 window.KD_ES = window.KD_STATIC ? null : new EventSource('/events');
+// 보기 전용판: 내 PC 서버가 '온라인으로-켜기.bat'으로 켜져 있으면, 그 터널 주소가 저장소 live 가지의 server.json 에 적혀 있음
+// → 그 주소로 실시간 수다·AI 를 씀. 못 찾거나 응답이 없으면 null (꺼짐)
+window.KD_LIVE = !window.KD_STATIC ? Promise.resolve('') : (async () => {
+  try {
+    const r = await fetch('https://api.github.com/repos/jeonghossi/gyotongdae-eodi-galkka/contents/server.json?ref=live',
+      { headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' });
+    if (!r.ok) return null;
+    const { url } = await r.json();
+    if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(url || '')) return null;
+    const ctrl = new AbortController(); setTimeout(() => ctrl.abort(), 6000);
+    const h = await fetch(url + '/health', { signal: ctrl.signal, cache: 'no-store' });
+    return h.ok ? url : null;
+  } catch (e) { return null; }
+})();
 // 다크 모드 켜기/끄기: 기본은 밝은 화면, 고른 값은 이 브라우저에 기억 (index.html 머리에서 먼저 적용)
 (() => {
   const btn = document.getElementById('themeToggle'); if (!btn) return;
@@ -113,7 +127,7 @@ const acts = (tab, x, extra = '') => { const key = esc(keyOf(tab, x)), on = FAV.
     <button type="button" class="act-btn fav" data-fav="${key}" aria-pressed="${on}" aria-label="${esc(x.n)} 찜하기">${on ? '♥' : '♡'}</button></span></div>`; };
 const vbarInner = key => { const v = SUM[key] || { up: 0, down: 0, n: 0 };
   return `${v.up >= BEST ? '<span class="best">개념</span>' : ''}<span class="vu">추천 <b>${v.up}</b></span><span class="vd">비추천 <b>${v.down}</b></span><span class="vc">리뷰 <b>${v.n}</b></span>`; };
-const vbar = key => STATIC ? '' : `<div class="vbar"><span class="vnums" data-vk="${esc(key)}">${vbarInner(key)}</span><button type="button" class="open-rv" data-open="${esc(key)}">리뷰·추천 →</button></div>`;
+const vbar = key => `<div class="vbar"><span class="vnums" data-vk="${esc(key)}">${vbarInner(key)}</span><button type="button" class="open-rv" data-open="${esc(key)}">리뷰·추천 →</button></div>`;
 
 function renderTabs() {
   document.getElementById('tabs').innerHTML = TABS.map(t =>
@@ -481,7 +495,9 @@ $id('rvClose').addEventListener('click', closeReview);
 $id('rv').addEventListener('click', e => { if (e.target === $id('rv')) closeReview(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$id('rv').hidden) closeReview(); });
 
+const DEMO_MSG = '보기 전용판이라 저장되지 않아요. 내 PC에서 실행한 버전에서 쓸 수 있어요.';
 async function vote(dir) {
+  if (STATIC) { $id('rvNote').textContent = DEMO_MSG; return; }
   try { const v = await post('/api/vote', { key: RV.key, dir, token: TOKEN }); paintVotes(v); syncSummary(v); $id('rvNote').textContent = dir === 'up' ? '추천했어요.' : '비추천했어요.'; }
   catch (e) { $id('rvNote').textContent = e.message; if (e.data && e.data.key) paintVotes(e.data); }
 }
@@ -490,6 +506,7 @@ $id('rvDownBtn').addEventListener('click', () => vote('down'));
 
 $id('rvForm').addEventListener('submit', async e => {
   e.preventDefault();
+  if (STATIC) { $id('rvNote').textContent = DEMO_MSG; return; }
   const name = $id('rvName').value.trim(), pw = $id('rvPw').value, text = $id('rvText').value.trim();
   if (!text) { $id('rvNote').textContent = '내용을 입력해 주세요.'; return; }
   if (pw.length < 4) { $id('rvNote').textContent = '비밀번호를 4자 이상 정해 주세요. 리뷰를 지울 때 필요해요.'; $id('rvPw').focus(); return; }
@@ -658,7 +675,7 @@ function closeReport() {
   $id('report').hidden = true; document.body.style.overflow = '';
   if (RP.from && document.contains(RP.from)) RP.from.focus();
 }
-if (!STATIC) {
+{
   $id('reportOpen').hidden = false; $id('rvReport').hidden = false;
   $id('reportOpen').addEventListener('click', e => openReport(e.currentTarget));
   $id('rvReport').addEventListener('click', () => {
@@ -672,6 +689,7 @@ if (!STATIC) {
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$id('report').hidden) closeReport(); });
   $id('reportForm').addEventListener('submit', async e => {
     e.preventDefault();
+    if (STATIC) { $id('reportNote').textContent = '보기 전용판이라 제보가 전송되지 않아요. 내 PC에서 실행한 버전에서 보내 주세요.'; return; }
     const text = $id('reportText').value.trim();
     if (text.length < 5) { $id('reportNote').textContent = '내용을 5자 이상 적어 주세요.'; $id('reportText').focus(); return; }
     $id('reportSend').disabled = true;
@@ -683,9 +701,11 @@ if (!STATIC) {
   });
 }
 
-// ---- AI 도우미 (내 PC 실행판에서만: 서버가 Ollama 의 EXAONE 에게 물어봄) ----
+// ---- AI 도우미 (서버가 Ollama 의 EXAONE 에게 물어봄. 보기 전용판은 내 PC 서버가 온라인일 때만) ----
 // 장소·정보 질문: 서버가 데이터에서 고른 '카드'(사실)와 AI 의 짧은 공감 문장을 보냄. 그냥 대화: AI 답을 글자 단위로 받음
-if (!STATIC) {
+{
+  // 서버 주소는 화면을 그린 뒤 뒤에서 찾음 ('' = 이 서버, 주소 = 터널, null = 꺼짐)
+  let API; window.KD_LIVE.then(v => { API = v; });
   const AI = { history: [], ctrl: null };
   const aiPanel = $id('aiPanel'), aiLog = $id('aiLog'), aiInput = $id('aiInput'), aiSend = $id('aiSend');
   $id('aiFab').hidden = false;
@@ -718,6 +738,8 @@ if (!STATIC) {
   async function ask() {
     const q = aiInput.value.trim();
     if (!q || AI.ctrl) return;
+    if (API === undefined) API = await window.KD_LIVE;
+    if (API === null) { bubble('me', q); aiInput.value = ''; bubble('bot err', '지금은 AI 서버가 꺼져 있어요. 사이트를 만든 사람의 PC 서버가 켜져 있을 때만 답할 수 있어요.'); return; }
     const sugg = $id('aiSugg'); if (sugg) sugg.remove();
     bubble('me', q); aiInput.value = '';
     const box = bubble('bot', ''), p = box.querySelector('p');
@@ -725,7 +747,7 @@ if (!STATIC) {
     aiSend.textContent = '멈추기'; AI.ctrl = new AbortController();
     let answer = '', started = false;
     try {
-      const r = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q, history: AI.history }), signal: AI.ctrl.signal });
+      const r = await fetch(API + '/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q, history: AI.history }), signal: AI.ctrl.signal });
       const reader = r.body.getReader(), dec = new TextDecoder();
       let buf = '';
       for (;;) {
@@ -895,7 +917,7 @@ if (DEEP) focusCard(keyOf(DEEP.tab, DEEP));
 })();
 
 // ---- 실시간 수다: 내 PC 서버(server.js)를 거쳐 접속한 사람끼리 주고받고, 20초 뒤 사라짐 (저장 안 함) ----
-(() => {
+(async () => {
   const LIFE = 20000, $ = id => document.getElementById(id);
   const chat = $('chat'), stage = $('stage'), hint = $('stageHint'), input = $('chatInput'), send = $('chatSend'), note = $('chatNote'), status = $('chatStatus');
   const me = Math.random().toString(36).slice(2, 10);
@@ -927,13 +949,40 @@ if (DEEP) focusCard(keyOf(DEEP.tab, DEEP));
     if (repeat >= 2) { mutedUntil = now + 10000; note.textContent = '같은 말을 반복해서 10초 동안 쉬어 가요.'; return; }
     lastText = text; lastAt = now;
     try {
-      const r = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: me, text }) });
+      const r = await fetch(API + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: me, text }) });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || '보내지 못했어요');
       input.value = ''; note.textContent = '';
     } catch (err) { note.textContent = err.message || '메시지를 보내지 못했어요. 다시 시도해 주세요.'; }
   });
 
-  if (window.KD_STATIC) { $('fab').hidden = true; chat.hidden = true; return; } // 보기 전용판: 채팅 숨김
+  const API = await window.KD_LIVE; // '' = 이 서버, 주소 = 터널(보기 전용판), null = 꺼짐
+  if (API === null) {
+    setOnline(false); $('fabTxt').textContent = '실시간 수다 · 꺼짐';
+    status.textContent = '지금은 서버가 꺼져 있어요';
+    hint.innerHTML = '사이트를 만든 사람의 PC 서버가 켜져 있을 때만<br>실시간 수다를 할 수 있어요.';
+    return;
+  }
+  const showCount = n => { status.textContent = `지금 ${n}명 접속 중 · 20초 뒤 사라짐`; $('fabTxt').textContent = `실시간 수다 · ${n}명`; };
+  if (API) {
+    // 보기 전용판: Cloudflare 무료 터널은 실시간 알림(SSE)을 못 넘겨서, 2초마다 새 메시지를 물어봄 (화면이 안 보일 땐 쉼)
+    let since = 0, fails = 0;
+    const poll = async () => {
+      if (document.hidden) return;
+      try {
+        const r = await fetch(`${API}/chat/poll?since=${since}`, { cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        if (since) for (const m of d.msgs) puff(String(m.text).slice(0, 80), '익명', m.id === me);
+        since = d.seq || since || -1; fails = 0;
+        if (!online) { setOnline(true); note.textContent = ''; }
+        showCount(d.count);
+      } catch (e) {
+        if (++fails >= 3) { setOnline(false); status.textContent = '서버와 연결이 끊겼어요 · 다시 연결 중…'; }
+      }
+    };
+    poll(); setInterval(poll, 2000);
+    return;
+  }
   const es = window.KD_ES;
   es.addEventListener('open', () => { setOnline(true); note.textContent = ''; });
   es.addEventListener('error', () => { setOnline(false); status.textContent = '서버와 연결이 끊겼어요 · 다시 연결 중…'; });

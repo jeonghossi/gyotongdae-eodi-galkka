@@ -7,7 +7,7 @@
 
 > 위 주소는 **보기 전용판**입니다(GitHub Pages는 서버를 돌릴 수 없음).
 > 맛집·숨은장소·꿀팁 보기, 필터, 검색, 지도, 골라주기, 공강 코스, 찜·공유, TIP 카드는 그대로 되고,
-> **리뷰 · 추천/비추천 · 실시간 채팅 · 정보 제보 · AI 도우미**는 아래 방법으로 내 PC에서 실행해야 쓸 수 있습니다.
+> **리뷰 · 추천/비추천 · 정보 제보**는 보여주기만 하고, **실시간 채팅 · AI 도우미**는 만든 사람의 PC 서버가 켜져 있을 때만 됩니다. 모두 쓰려면 아래 방법으로 내 PC에서 실행하세요.
 
 ## 기능
 
@@ -36,6 +36,10 @@
 
 같은 와이파이에 있는 사람은 서버 창에 나오는 `http://192.168.x.x:3100` 주소로 접속할 수 있습니다.
 포트를 바꾸려면 `PORT=4000 node server.js` 처럼 실행하세요.
+
+### GitHub 주소에서도 실시간 수다 · AI 쓰기 (선택)
+
+`온라인으로-켜기.bat`(= `node tools/online.js`)은 서버와 [Cloudflare 무료 터널](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/)을 켜고, 터널 주소를 이 저장소의 `live` 가지 `server.json`에 적습니다(`gh` 로그인 필요). 보기 전용판은 그 주소로 실시간 수다(2초마다 가져오기)와 AI 도우미를 씁니다. 터널로는 `/health` · `/chat` · `/chat/poll` · `/api/ai`만 열리고, 나머지(사이트 파일·리뷰·관리자)는 404입니다. Ctrl + C로 끄면 `server.json`이 꺼짐으로 바뀝니다.
 
 ### AI 도우미 켜기 (선택)
 
@@ -71,6 +75,7 @@ public/
   data/coords.json     지도·로드뷰 좌표 (학생들이 낸 네이버 지도 링크에서 뽑음)
 tools/update-data.js   엑셀 → places.json 변환
 tools/set-admin-key.js 관리자 키 정하기
+tools/online.js        서버 + Cloudflare 터널 켜고 주소를 live 가지에 알리기 (온라인으로-켜기.bat)
 storage/               리뷰·추천·제보 기록 (실행하면 생김, 저장소에는 올리지 않음)
 ```
 

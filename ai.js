@@ -159,6 +159,8 @@ async function handle(req, res, body, ip) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   if (!question) { send('error', { message: '질문을 입력해 주세요.' }); return res.end(); }
   if (busy.has(ip)) { send('error', { message: '앞 질문의 답을 쓰는 중이에요. 잠시만 기다려 주세요.' }); return res.end(); }
+  // 인터넷(GitHub 주소)에서도 들어오니, 내 PC 그래픽카드가 버티게 동시에 3명까지만
+  if (busy.size >= 3) { send('error', { message: '지금 질문이 많아요. 잠시 뒤에 다시 물어봐 주세요.' }); return res.end(); }
   busy.add(ip);
   const ctrl = new AbortController();
   res.on('close', () => ctrl.abort());   // '멈추기'나 창 닫기 → 생성 중단

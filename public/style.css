@@ -664,4 +664,5 @@ nav.tabs button[aria-selected="true"] { color: var(--accent); background: none; 
 /* 보기 전용판(GitHub): 카드도 눌러서 '자세히' 창을 엶. 창에서 리뷰·추천 칸만 숨김 */
 .rv-static-note { display: none; margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--chip); color: var(--muted); font-size: 13px; text-align: center; }
 .static .rv-static-note { display: block; }
-.static .rv-votes, .static .rv-reviews-h, .static #rvList, .static #rvForm { display: none; }
+.intro-live { margin: 8px 0 0; font-size: 13px; color: var(--ink); }
+.ai-msg.bot.err p { background: var(--down-soft); color: var(--down); border-color: transparent; }

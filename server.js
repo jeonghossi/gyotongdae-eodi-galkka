@@ -28,10 +28,13 @@ function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${typeof data === 'string' ? data : JSON.stringify(data)}\n\n`;
   for (const res of clients) res.write(msg);
 }
-const sendCount = () => broadcast('count', String(clients.size));
+const sendCount = () => broadcast('count', String(onlineCount()));
 const reply = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
 const clean = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
-const ipOf = req => String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+const sockIp = req => String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+// 터널(cloudflared)로 온 요청: 이 PC 안에서 들어오지만 진짜 주인은 cf-connecting-ip → '내 PC' 로 치지 않음
+const viaTunnel = req => ['127.0.0.1', '::1'].includes(sockIp(req)) && !!req.headers['cf-connecting-ip'];
+const ipOf = req => viaTunnel(req) ? String(req.headers['cf-connecting-ip']).trim() : sockIp(req);
 // 디시 유동닉처럼 IP 앞 두 자리만 보여줌. 내 PC에서 쓴 글은 "내 PC"
 const ipLabel = ip => (ip === '127.0.0.1' || ip === '::1') ? '내 PC' : (/^\d+\.\d+\./.test(ip) ? ip.split('.').slice(0, 2).join('.') : '외부');
 
@@ -283,7 +286,24 @@ async function onChat(req, res) {
   if (now - (lastChat.get(ip) || 0) < 1000) return reply(res, 429, { error: '조금 천천히 보내 주세요.' });
   lastChat.set(ip, now);
   broadcast('chat', { id, text });
+  recentChat.push({ seq: ++chatSeq, id, text, at: now });
   reply(res, 200, { ok: true });
+}
+// GitHub 보기 전용판용 '가져가기': Cloudflare 무료 터널은 실시간 알림(SSE)을 끝까지 모아 두었다 보내서,
+// 터널 너머의 사람은 2초마다 새 메시지를 물어봄. 메시지는 20초만 메모리에 두고 저장하지 않음
+const recentChat = [], pollers = new Map(); // pollers: 물어본 사람(IP) → 마지막 시각
+let chatSeq = 0;
+const onlineCount = () => {
+  const now = Date.now();
+  for (const [k, t] of pollers) if (now - t > 10000) pollers.delete(k);
+  return clients.size + pollers.size;
+};
+function onChatPoll(req, res, url) {
+  const now = Date.now();
+  while (recentChat.length && now - recentChat[0].at > 20000) recentChat.shift();
+  pollers.set(ipOf(req), now);
+  const since = Number(url.searchParams.get('since')) || 0;
+  reply(res, 200, { seq: chatSeq, count: onlineCount(), msgs: since ? recentChat.filter(m => m.seq > since).map(({ id, text, seq }) => ({ id, text, seq })) : [] });
 }
 
 // ---------- 파일·알림 ----------
@@ -307,10 +327,25 @@ function onEvents(req, res) {
   req.on('close', () => { clearInterval(ping); clients.delete(res); sendCount(); });
 }
 
+// GitHub 보기 전용판이 터널을 거쳐 쓸 수 있는 것: 실시간 수다 · AI 도우미뿐 (리뷰·관리자 등은 터널로 안 열림)
+const ONLINE_ORIGINS = ['https://jeonghossi.github.io'];
+const ONLINE_PATHS = ['/health', '/chat', '/chat/poll', '/api/ai'];
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  const origin = req.headers.origin;
+  if (ONLINE_ORIGINS.includes(origin) && ONLINE_PATHS.includes(url.pathname)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Vary', 'Origin');
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  }
+  if (viaTunnel(req) && !ONLINE_PATHS.includes(url.pathname)) return notFound(res);
+  if (req.method === 'GET' && url.pathname === '/health') return reply(res, 200, { ok: true, chat: true, ai: ai.MODEL });
   if (req.method === 'GET' && url.pathname === '/events') return onEvents(req, res);
   if (req.method === 'POST' && url.pathname === '/chat') return onChat(req, res);
+  if (req.method === 'GET' && url.pathname === '/chat/poll') return onChatPoll(req, res, url);
   if (req.method === 'POST' && url.pathname === '/api/ai') return readBody(req, 8000).then(b => ai.handle(req, res, b, ipOf(req)), () => reply(res, 400, { error: '잘못된 요청이에요' }));
   if (req.method === 'POST' && url.pathname === '/api/admin/enter') return adminEnter(req, res).catch(e => { console.error(e); reply(res, 500, { error: '서버 오류가 났어요' }); });
   if (req.method === 'POST' && url.pathname === '/api/admin/leave') return adminLeave(req, res);
